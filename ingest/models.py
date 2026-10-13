@@ -25,7 +25,6 @@ class SecurityEvent(models.Model):
     asset = models.ForeignKey(Assets, on_delete=models.CASCADE)
     description = models.TextField()
     severity = models.CharField(max_length=50)
-    mitre_id = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     metadata = models.JSONField(blank=True, null=True)

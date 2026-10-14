@@ -11,8 +11,13 @@ class AutonomousIngestView(APIView):
 
         try:
             event = process_incoming_log(source, data)
+            detection_ids = list(event.detections.values_list("id", flat=True))
             return Response(
-                {"message": "Event received", "event_id": event.id},
+                {
+                    "message": "Event received",
+                    "event_id": event.id,
+                    "detection_ids": detection_ids,
+                },
                 status=status.HTTP_200_OK,
             )
         except ValueError as e:

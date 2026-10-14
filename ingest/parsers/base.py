@@ -1,4 +1,5 @@
 from .registry import normalization_registry
+from analytics.services import detection_engine
 
 def process_incoming_log(source_name, raw_payload):
     registry = normalization_registry()
@@ -7,4 +8,6 @@ def process_incoming_log(source_name, raw_payload):
     if not parser_func:
         raise ValueError(f"Desteklenmeyen veri kaynağı: {source_name}")
         
-    return parser_func(raw_payload)
+    event = parser_func(raw_payload)
+    detection_engine(event)
+    return event

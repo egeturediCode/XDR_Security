@@ -59,6 +59,17 @@ class DetectionRule(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     mitre_techniques = models.ManyToManyField(MitreTechnique, blank=True, related_name="detection_rules")
+    severity = models.CharField(
+        max_length=20,
+        choices=[
+            ("low", "Low"),
+            ("medium", "Medium"),
+            ("high", "High"),
+            ("critical", "Critical"),
+        ],
+        default='low',
+    )
+    parameters = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
         return self.name

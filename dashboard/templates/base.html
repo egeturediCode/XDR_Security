@@ -1,0 +1,95 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#080d14">
+    <title>{% block title %}X_Security{% endblock %} | X_Security</title>
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}?v={% now 'U' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    {% with current=request.resolver_match.url_name %}
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <a class="brand" href="{% url 'dashboard' %}" aria-label="X_Security dashboard">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2.8 20 6v5.4c0 5.1-3.4 8.4-8 10.5-4.6-2.1-8-5.4-8-10.5V6l8-3.2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                        <path d="m8.8 12.2 2.1 2.1 4.5-4.7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </span>
+                <span>X_<span class="brand-light">Security</span></span>
+            </a>
+
+            <p class="nav-label">ÇALIŞMA ALANI</p>
+            <nav class="navigation" aria-label="Ana gezinme">
+                <a class="nav-link{% if current == 'dashboard' %} active{% endif %}" href="{% url 'dashboard' %}"{% if current == 'dashboard' %} aria-current="page"{% endif %}>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+                        <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+                        <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+                        <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+                    </svg>
+                    Genel Bakış
+                </a>
+                <a class="nav-link{% if current == 'logs' or current == 'log_detail' %} active{% endif %}" href="{% url 'logs' %}"{% if current == 'logs' or current == 'log_detail' %} aria-current="page"{% endif %}>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.6"/>
+                        <path d="M7 9h10M7 13h7M7 17h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    </svg>
+                    Kayıtlar
+                </a>
+                <a class="nav-link{% if current == 'detections' %} active{% endif %}" href="{% url 'detections' %}"{% if current == 'detections' %} aria-current="page"{% endif %}>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M12 3 21 19H3L12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                        <path d="M12 9v4m0 3h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
+                    Tespitler
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <div class="protection-status">
+                    <span class="status-dot" aria-hidden="true"></span>
+                    <span>
+                        <strong>Güvenlik görünümü</strong>
+                        <small>Tespit ve olay özeti</small>
+                    </span>
+                </div>
+                <div class="account">
+                    <span class="avatar" aria-hidden="true">{{ request.user.username|first|upper }}</span>
+                    <span class="account-name">
+                        <strong>{{ request.user.username }}</strong>
+                        <small>Güvenli oturum</small>
+                    </span>
+                    <a class="logout-link" href="{% url 'logout' %}" aria-label="Oturumu kapat" title="Oturumu kapat">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="topbar">
+                <div class="breadcrumbs"><span>X_Security</span><span class="crumb-divider">/</span><strong>{% block breadcrumb %}{% endblock %}</strong></div>
+                <div class="topbar-status"><span class="status-dot" aria-hidden="true"></span> Olay izleme paneli</div>
+            </header>
+
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for message in messages %}
+                        <div class="flash flash-{{ message.level_tag }}" role="status">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% endwith %}
+</body>
+</html>

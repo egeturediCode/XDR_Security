@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Security Event'leri{% endblock %}
+{% block breadcrumb %}Security Event'leri{% endblock %}
+
+{% block content %}
+<section class="page-heading" aria-labelledby="page-title">
+    <div>
+        <p class="eyebrow">INGEST MONİTÖRÜ</p>
+        <h1 id="page-title">Security Event'leri</h1>
+        <p class="page-subtitle">Kaynak sistemlerden normalize edilen event kayıtları ve detection bağlantıları.</p>
+    </div>
+</section>
+
+<section class="panel" aria-labelledby="events-title">
+    <div class="panel-heading">
+        <div><p class="section-kicker">EVENT AKIŞI</p><h2 id="events-title">{{ total_count }} kayıt</h2></div>
+    </div>
+    {% if page.object_list %}
+    <div class="detection-list">
+        {% for event in page.object_list %}
+        <article class="detection-row">
+            <span class="severity-marker severity-{{ event.severity|lower }}" aria-hidden="true"></span>
+            <div class="detection-info">
+                <div class="detection-title-row">
+                    <h3><a style="color: #dce5ea; text-decoration: none;" onmouseover="this.style.color='#5ce1c0'" onmouseout="this.style.color='#dce5ea'" href="{% url 'log_detail' event.id %}">{{ event.source }} · {{ event.hostname }}</a></h3>
+                    <span class="severity-label severity-text-{{ event.severity }}">{{ event.severity }}</span>
+                </div>
+                <p>{{ event.description }}</p>
+                <div class="detection-meta">
+                    <span>{{ event.ip_address }}</span>
+                    <span class="meta-separator">·</span>
+                    <span>{{ event.created_at|date:"d.m.Y H:i" }}</span>{% if event.detection_count %}
+                    <span class="meta-separator">·</span>
+                    <span>{{ event.detection_count }} detection</span>{% endif %}
+                </div>
+            </div>
+            <span class="state-pill state-{{ event.status }}">{{ event.status }}</span>
+        </article>
+        {% endfor %}
+    </div>
+    {% if page.paginator.num_pages > 1 %}
+    <nav class="pagination" aria-label="Sayfalama">
+        {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">← Önceki</a>{% endif %}
+        <span>Sayfa {{ page.number }} / {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Sonraki →</a>{% endif %}
+    </nav>
+    {% endif %}
+    {% else %}
+    <div class="empty-state"><strong>Henüz security event yok</strong><span>Ingest API üzerinden event gönderildiğinde burada görünür.</span></div>
+    {% endif %}
+</section>
+{% endblock %}

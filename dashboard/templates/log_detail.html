@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Event #{{ event.id }}{% endblock %}
+{% block breadcrumb %}Event #{{ event.id }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .7fr); gap: 16px; }
+    .detail-card { padding: 20px; }
+    .detail-card h2 { margin: 0 0 16px; font-size: 15px; }
+    .detail-list { display: grid; grid-template-columns: max-content 1fr; gap: 10px 18px; margin: 0; font-size: 11px; }
+    .detail-list dt { color: var(--muted); } .detail-list dd { margin: 0; }
+    .metadata { overflow: auto; margin: 0; padding: 16px; border-radius: 8px; color: #b8f3e4; background: rgba(0,0,0,.22); font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .related-detection { padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .related-detection:last-child { border-bottom: 0; }
+    .back-link { display: inline-block; margin-bottom: 18px; color: var(--accent); font-size: 11px; text-decoration: none; }
+    @media (max-width: 850px) { .detail-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="page-heading" aria-labelledby="page-title">
+    <div>
+        <p class="eyebrow">SECURITY EVENT</p>
+        <h1 id="page-title">{{ event.source }} · Event #{{ event.id }}</h1>
+        <p class="page-subtitle">{{ event.description }}</p>
+    </div>
+</section>
+<a class="back-link" href="{% url 'logs' %}">← Event listesine dön</a>
+
+<div class="detail-grid">
+    <section class="panel detail-card" aria-labelledby="event-info-title">
+        <h2 id="event-info-title">Event bilgileri</h2>
+        <dl class="detail-list">
+            <dt>Kaynak</dt><dd>{{ event.source }}</dd>
+            <dt>Varlık</dt><dd>{{ event.asset.hostname }}</dd>
+            <dt>IP adresi</dt><dd>{{ event.asset.ip_address }}</dd>
+            <dt>Önem</dt><dd>{{ event.severity }}</dd>
+            <dt>Oluşturulma</dt><dd>{{ event.created_at|date:"d.m.Y H:i:s" }}</dd>
+            <dt>Bağlı detection</dt><dd>{{ detections|length }}</dd>
+        </dl>
+        <h2 style="margin-top: 28px;">Normalize metadata</h2>
+        <pre class="metadata">{{ event_metadata }}</pre>
+    </section>
+
+    <aside class="panel detail-card" aria-labelledby="related-title">
+        <h2 id="related-title">Detection analizi</h2>
+        {% if detections %}
+            {% for detection in detections %}
+            <div class="related-detection">
+                <strong>{{ detection.name }}</strong>
+                <p>{{ detection.description|default:"Ek açıklama yok." }}</p>
+                <small>{{ detection.events.count }} event · {{ detection.indicators.count }} IOC</small>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state" style="min-height: 120px;"><strong>Henüz detection yok</strong><span>Event rule motoru tarafından eşleştirilmemiş.</span></div>
+        {% endif %}
+    </aside>
+</div>
+{% endblock %}

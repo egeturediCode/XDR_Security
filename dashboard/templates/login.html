@@ -1,0 +1,85 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080d14">
+  <title>Giriş Yap | X_Security</title>
+  <link rel="stylesheet" href="{% static 'css/login.css' %}">
+</head>
+<body>
+  <main class="login-shell">
+    <section class="form-panel" aria-labelledby="login-heading">
+      <header class="form-heading">
+        <h2 id="login-heading">X_Security Giriş</h2>
+        <p>Devam etmek için hesabına giriş yap.</p>
+      </header>
+
+      <form method="post">
+        {% csrf_token %}
+        {% if next %}
+          <input type="hidden" name="next" value="{{ next }}">
+        {% endif %}
+
+        {% if form.non_field_errors %}
+          <div class="form-error" role="alert">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="field">
+          <label for="id_username">Kullanıcı adı</label>
+          <input
+            id="id_username"
+            name="username"
+            type="text"
+            placeholder="Kullanıcı adını gir"
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck="false"
+            required
+            autofocus
+            {% if form.username.value %}value="{{ form.username.value }}"{% endif %}
+            aria-invalid="{% if form.username.errors %}true{% else %}false{% endif %}"
+            {% if form.username.errors %}aria-describedby="username-error"{% endif %}
+          >
+          {% if form.username.errors %}
+            <p class="field-error" id="username-error" role="alert">{{ form.username.errors }}</p>
+          {% endif %}
+        </div>
+
+        <div class="field">
+          <label for="id_password">Parola</label>
+          <input
+            id="id_password"
+            name="password"
+            type="password"
+            placeholder="Parolanı gir"
+            autocomplete="current-password"
+            required
+            aria-invalid="{% if form.password.errors %}true{% else %}false{% endif %}"
+            {% if form.password.errors %}aria-describedby="password-error"{% endif %}
+          >
+          {% if form.password.errors %}
+            <p class="field-error" id="password-error" role="alert">{{ form.password.errors }}</p>
+          {% endif %}
+        </div>
+
+        <button class="submit-button" type="submit">
+          <span>Giriş yap</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </form>
+
+      <p class="secure-note">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="5" y="10" width="14" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M8 10V7a4 4 0 1 1 8 0v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Oturumun güvenli bağlantı üzerinden korunur
+      </p>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Detection'lar{% endblock %}
+{% block breadcrumb %}Detection'lar{% endblock %}
+{% block extra_head %}
+    <style>
+    .panel-count { text-decoration: none; color: inherit; }
+
+    .filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 17px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .filter-bar input,
+    .filter-bar select,
+    .filter-bar button,
+    .filter-bar a {
+        height: 32px;
+        padding: 0 12px;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        color: #c4ced7;
+        background-color: rgba(255, 255, 255, 0.025);
+        font: inherit;
+        font-size: 11px;
+        line-height: 30px;
+        transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+    }
+
+    .filter-bar input {
+        flex: 1 1 240px;
+        padding-left: 32px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23748394' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: 12px center;
+        background-size: 13px;
+    }
+
+    .filter-bar input::placeholder {
+        color: #657485;
+    }
+
+    .filter-bar select {
+        padding-right: 28px;
+        appearance: none;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23748394' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 12px;
+    }
+
+    .filter-bar select option {
+        color: #000; 
+    }
+
+    .filter-bar input:hover,
+    .filter-bar select:hover,
+    .filter-bar button:hover,
+    .filter-bar a:hover {
+        border-color: rgba(92, 225, 192, 0.3);
+        color: var(--accent);
+    }
+
+    .filter-bar input:focus,
+    .filter-bar select:focus {
+        border-color: rgba(92, 225, 192, 0.45);
+        outline: 0;
+        color: #e3ebef;
+    }
+
+    .filter-bar button,
+    .filter-bar a {
+        cursor: pointer;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .filter-submit {
+        border-color: rgba(92, 225, 192, 0.2) !important;
+        color: var(--accent) !important;
+        background-color: var(--accent-soft) !important;
+    }
+
+    .filter-clear {
+        color: #95a3af;
+    }
+
+    @media (max-width: 640px) {
+        .filter-bar { 
+            padding: 12px; 
+        }
+        .filter-bar input { 
+            flex-basis: 100%;
+        }
+    }
+    </style>
+{% endblock %}
+
+{% block content %}
+<section class="page-heading" aria-labelledby="page-title">
+    <div>
+        <p class="eyebrow">DETECTION ENGINE</p>
+        <h1 id="page-title">Detection'lar</h1>
+        <p class="page-subtitle">Vendor tarafından saptanan veya korelasyon kurallarıyla oluşturulan kayıtlar.</p>
+    </div>
+</section>
+
+<section class="panel" aria-labelledby="detections-title">
+    <div class="panel-heading">
+        <div>
+            <p class="section-kicker">ANALİZ KAYITLARI</p>
+            <h2 id="detections-title">{{ total_count }} detection</h2>
+        </div>
+    </div>
+    <form class="filter-bar" method="get">
+        <input type="search" name="q" value="{{ query }}" placeholder="Detection veya açıklama ara">
+        <select name="severity" aria-label="Önem düzeyi">
+            <option value="">Tüm önem düzeyleri</option>
+            {% for choice in severity_choices %}<option value="{{ choice }}"{% if choice == severity %} selected{% endif %}>{{ choice|title }}</option>{% endfor %}
+        </select>
+        <select name="status" aria-label="Detection türü">
+            <option value="">Tüm türler</option>
+            {% for choice in status_choices %}<option value="{{ choice }}"{% if choice == status %} selected{% endif %}>{{ choice|title }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="filter-submit">Filtrele</button>
+        {% if query or severity or status %}<a class="filter-clear" href="{% url 'detections' %}">Temizle</a>{% endif %}
+    </form>
+
+    {% if page.object_list %}
+        <div class="detection-list">
+        {% for detection in page.object_list %}
+            <article class="detection-row">
+                <span class="severity-marker severity-{{ detection.severity }}" aria-hidden="true"></span>
+                <div class="detection-info">
+                    <div class="detection-title-row">
+                        <h3><a style="color: #dce5ea; text-decoration: none;" onmouseover="this.style.color='#5ce1c0'" onmouseout="this.style.color='#dce5ea'" href="{% url 'detection_detail' detection.id %}">{{ detection.name }}</a></h3>
+                        <span class="severity-label severity-text-{{ detection.severity }}">{{ detection.severity }}</span>
+                    </div>
+                    <p>{{ detection.description }}</p>
+                    <div class="detection-meta">
+                        <span>{{ detection.hostname|default:"Varlık bilgisi yok" }}</span>
+                        <span class="meta-separator">·</span>
+                        <span>{{ detection.event_count }} event</span>
+                        <span class="meta-separator">·</span>
+                        <span>{{ detection.indicator_count }} IOC</span>
+                        <span class="meta-separator">·</span>
+                        <span>{{ detection.detected_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                </div>
+                <span class="state-pill state-{{ detection.status }}">{{ detection.status }}</span>
+            </article>
+        {% endfor %}
+        </div>
+        {% if page.paginator.num_pages > 1 %}
+        <nav class="pagination" aria-label="Sayfalama">
+            {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}&q={{ query|urlencode }}&severity={{ severity }}&status={{ status }}">← Önceki</a>{% endif %}
+            <span>Sayfa {{ page.number }} / {{ page.paginator.num_pages }}</span>
+            {% if page.has_next %}<a href="?page={{ page.next_page_number }}&q={{ query|urlencode }}&severity={{ severity }}&status={{ status }}">Sonraki →</a>{% endif %}
+        </nav>
+        {% endif %}
+    {% else %}
+        <div class="empty-state"><strong>Detection bulunamadı</strong><span>Filtreleri değiştirin veya yeni event ingest edin.</span></div>
+    {% endif %}
+</section>
+{% endblock %}

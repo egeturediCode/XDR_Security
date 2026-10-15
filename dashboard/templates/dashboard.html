@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block extra_head %}
+    <style>.panel-count { text-decoration: none; color: inherit; }</style>
+{% endblock %}
+
+{% block breadcrumb %}Genel Bakış{% endblock %}
+
+{% block content %}
+<section class="page-heading" aria-labelledby="page-title">
+    <div>
+        <p class="eyebrow">GÜVENLİK KONTROL MERKEZİ</p>
+        <h1 id="page-title">Genel Bakış</h1>
+        <p class="page-subtitle">Güvenlik durumun ve son aktivitelerin tek bir yerde.</p>
+    </div>
+    <div class="updated-label">
+        <span class="updated-dot" aria-hidden="true"></span>
+        Güncel güvenlik özeti
+    </div>
+</section>
+
+<section class="metrics-grid" aria-label="Güvenlik özeti">
+    <article class="metric-card">
+        <div class="metric-topline">
+            <span class="metric-icon amber" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 21 19H3L12 3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9v4m0 3h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </span>
+            <span class="metric-period">ŞU AN</span>
+        </div>
+        <p class="metric-label">Toplam detection</p>
+        <p class="metric-value">{{ detection_count }}</p>
+        <p class="metric-footnote">Kural motoru ve vendor tespitleri</p>
+    </article>
+
+    <article class="metric-card">
+        <div class="metric-topline">
+            <span class="metric-icon red" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 21 19H3L12 3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9v4m0 3h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </span>
+            <span class="metric-period">AÇIK</span>
+        </div>
+        <p class="metric-label">Yüksek öncelikli detection</p>
+        <p class="metric-value">{{ high_severity_count }}</p>
+        <p class="metric-footnote">Yüksek veya kritik önem düzeyi</p>
+    </article>
+
+    <article class="metric-card">
+        <div class="metric-topline">
+            <span class="metric-icon blue" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 2.8 20 6v5.4c0 5.1-3.4 8.4-8 10.5-4.6-2.1-8-5.4-8-10.5V6l8-3.2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="metric-period">AKTİF</span>
+        </div>
+        <p class="metric-label">Aktif tehdit IP'si</p>
+        <p class="metric-value">{{ active_threat_ip_count }}</p>
+        <p class="metric-footnote">ThreatFox'tan aktif göstergeler</p>
+    </article>
+
+    <article class="metric-card">
+        <div class="metric-topline">
+            <span class="metric-icon green" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5m0 14h16M8 15l3-4 3 2 5-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="metric-period">24 SAAT</span>
+        </div>
+        <p class="metric-label">Son 24 saatteki event</p>
+        <p class="metric-value">{{ events_today_count }}</p>
+        <p class="metric-footnote">Ingest edilen güvenlik event'leri</p>
+    </article>
+</section>
+
+<div class="content-grid">
+    <section class="panel detections-panel" id="detections" aria-labelledby="detections-title">
+        <div class="panel-heading">
+            <div>
+                <p class="section-kicker">TEHDİT İZLEME</p>
+                <h2 id="detections-title">Son detection'lar</h2>
+            </div>
+            <a class="panel-count" href="{% url 'detections' %}">Tümünü gör →</a>
+        </div>
+
+        {% if recent_detections %}
+            <div class="detection-list">
+                {% for detection in recent_detections %}
+                    <article class="detection-row">
+                        <span class="severity-marker severity-{{ detection.severity|lower }}" aria-hidden="true"></span>
+                        <div class="detection-info">
+                            <div class="detection-title-row">
+                                <h3><a style="color: #dce5ea; text-decoration: none;" onmouseover="this.style.color='#5ce1c0'" onmouseout="this.style.color='#dce5ea'" href="{% url 'detection_detail' detection.id %}">{{ detection.name }}</a></h3>
+                                <span class="severity-label severity-text-{{ detection.severity }}">{{ detection.severity }}</span>
+                            </div>
+                            <p>{{ detection.description }}</p>
+                            <div class="detection-meta">
+                                <span>{{ detection.hostname|default:"Varlık yok" }} · {{ detection.ip_address|default:"IP bilgisi yok" }}</span>
+                                <span class="meta-separator">·</span>
+                                <span>{{ detection.event_count }} event</span>
+                                <span class="meta-separator">·</span>
+                                <span>{{ detection.detected_at|date:"d.m.Y H:i" }}</span>
+                            </div>
+                        </div>
+                        <span class="state-pill state-{{ detection.status }}">{{ detection.status }}</span>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <span class="empty-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <strong>Şimdilik tespit yok</strong>
+                <span>Yeni güvenlik tespitleri burada görünecek.</span>
+            </div>
+        {% endif %}
+    </section>
+
+    <section class="panel logs-panel" id="logs" aria-labelledby="logs-title">
+        <div class="panel-heading">
+            <div>
+                <p class="section-kicker">MÜDAHALE TAKİBİ</p>
+                <h2 id="logs-title">Son security event'leri</h2>
+            </div>
+            <a class="panel-count" href="{% url 'logs' %}">Tümünü gör →</a>
+        </div>
+
+        {% if recent_events %}
+            <div class="detection-list">
+                {% for event in recent_events %}
+                    <article class="detection-row">
+                        <span class="severity-marker severity-{{ event.severity|lower }}" aria-hidden="true"></span>
+                        <div class="detection-info">
+                            <div class="detection-title-row">
+                                <h3><a style="color: #dce5ea; text-decoration: none;" onmouseover="this.style.color='#5ce1c0'" onmouseout="this.style.color='#dce5ea'" href="{% url 'log_detail' event.id %}">{{ event.source }} · {{ event.hostname }}</a></h3>
+                                <span class="severity-label severity-text-{{ event.severity }}">{{ event.severity }}</span>
+                            </div>
+                            <p>{{ event.description }}</p>
+                            <div class="detection-meta">
+                                <span>{{ event.ip_address }}</span>
+                                <span class="meta-separator">·</span>
+                                <span>{{ event.created_at|date:"d.m.Y H:i" }}</span>{% if event.detection_count %}
+                                <span class="meta-separator">·</span>
+                                <span>{{ event.detection_count }} detection</span>{% endif %}
+                            </div>
+                        </div>
+                        <span class="state-pill state-{{ event.status }}">{{ event.status }}</span>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <span class="empty-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.6"/><path d="M7 9h10M7 13h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                </span>
+                <strong>Henüz olay bulunmuyor</strong>
+                <span>Olay kayıtları burada listelenir.</span>
+            </div>
+        {% endif %}
+    </section>
+</div>
+
+<footer class="page-footer">
+    <span>SentinelCore <span class="footer-separator">·</span> Güvenlik operasyonları</span>
+    <span><span class="footer-dot" aria-hidden="true"></span> Kontrol paneli hazır</span>
+</footer>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}{{ detection.name }}{% endblock %}
+{% block breadcrumb %}Detection #{{ detection.id }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .detail-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr); gap: 16px; }
+    .detail-card { padding: 20px; }
+    .detail-card h2 { margin: 0 0 16px; color: #e3ebef; font-size: 15px; }
+    .detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .detail-heading h1 { margin: 0; font-size: clamp(22px, 3vw, 30px); }
+    .detail-description { margin: 9px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .detail-list { display: grid; grid-template-columns: max-content 1fr; gap: 10px 18px; margin: 0; font-size: 11px; }
+    .detail-list dt { color: var(--muted); }
+    .detail-list dd { margin: 0; color: var(--text); }
+    .related-list { display: grid; gap: 10px; }
+    .related-item { display: block; padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: rgba(255,255,255,.025); text-decoration: none; }
+    .related-item:hover { border-color: rgba(92,225,192,.3); }
+    .related-item strong { display: block; font-size: 11px; }
+    .related-item small { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 7px; }
+    .tag { display: inline-flex; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; color: #b8f3e4; background: rgba(92,225,192,.06); font-size: 10px; }
+    .indicator-tag { color: #f3bd71; background: rgba(243,189,113,.06); }
+    .event-description { overflow: hidden; margin: 6px 0 0; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .back-link { display: inline-block; margin-bottom: 18px; color: var(--accent); font-size: 11px; text-decoration: none; }
+    .empty-inline { color: var(--muted); font-size: 11px; }
+    @media (max-width: 850px) {
+        .detail-grid { grid-template-columns: 1fr; }
+        .detail-heading { display: block; }
+        .detail-heading .severity-label { display: inline-block; margin-top: 12px; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="page-heading" aria-labelledby="page-title">
+    <div class="detail-heading">
+        <div>
+            <p class="eyebrow">DETECTION ANALİZİ · #{{ detection.id }}</p>
+            <h1 id="page-title">{{ detection.name }}</h1>
+            <p class="detail-description">{{ detection.description|default:"Bu detection için ek açıklama bulunmuyor." }}</p>
+        </div>
+        <span class="severity-label severity-text-{{ detection_severity }}">{{ detection_severity }}</span>
+    </div>
+</section>
+
+<a class="back-link" href="{% url 'detections' %}">← Detection listesine dön</a>
+
+<div class="detail-grid">
+    <div>
+        <section class="panel detail-card" aria-labelledby="summary-title">
+            <h2 id="summary-title">Detection özeti</h2>
+            <dl class="detail-list">
+                <dt>Oluşturulma</dt><dd>{{ detection.created_at|date:"d.m.Y H:i:s" }}</dd>
+                <dt>Bağlı event</dt><dd>{{ events|length }}</dd>
+                <dt>Threat indicator</dt><dd>{{ indicators|length }}</dd>
+                <dt>Eşleşen rule</dt><dd>{{ rules|length }}</dd>
+            </dl>
+        </section>
+
+        <section class="panel detail-card" style="margin-top: 16px;" aria-labelledby="events-title">
+            <h2 id="events-title">Korelasyona dahil event'ler</h2>
+            {% if events %}
+                <div class="related-list">
+                    {% for event in events %}
+                    <a class="related-item" href="{% url 'log_detail' event.id %}">
+                        <strong>{{ event.source }} · {{ event.asset.hostname }}</strong>
+                        <small>{{ event.asset.ip_address }} · {{ event.severity }} · {{ event.created_at|date:"d.m.Y H:i:s" }}</small>
+                        <p class="event-description">{{ event.description }}</p>
+                    </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="empty-inline">Bu detection'a bağlı event bulunamadı.</p>
+            {% endif %}
+        </section>
+    </div>
+
+    <aside>
+        <section class="panel detail-card" aria-labelledby="rules-title">
+            <h2 id="rules-title">Detection rule'ları</h2>
+            {% if rules %}
+                <div class="related-list">
+                    {% for rule in rules %}
+                    <div class="related-item">
+                        <strong>{{ rule.name }}</strong>
+                        <small>{{ rule.severity|title }} · {{ rule.description|default:"Açıklama yok." }}</small>
+                        <div class="tag-list" style="margin-top: 9px;">
+                            {% for technique in rule.mitre_techniques.all %}
+                            <span class="tag">{{ technique.technique_id }} · {{ technique.name }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="empty-inline">Vendor tarafından doğrudan saptanan event. Correlation rule eşleşmesi yok.</p>
+            {% endif %}
+        </section>
+
+        <section class="panel detail-card" style="margin-top: 16px;" aria-labelledby="indicators-title">
+            <h2 id="indicators-title">ThreatFox / IOC eşleşmeleri</h2>
+            {% if indicators %}
+                <div class="tag-list">
+                    {% for indicator in indicators %}
+                    <span class="tag indicator-tag" title="{{ indicator.source }}">{{ indicator.indicator_type }}: {{ indicator.value }}</span>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="empty-inline">Bu detection için eşleşen ThreatFox göstergesi yok.</p>
+            {% endif %}
+        </section>
+    </aside>
+</div>
+{% endblock %}

@@ -23,6 +23,13 @@
                 <span>X_<span class="brand-light">Security</span></span>
             </a>
 
+            {% if request.company %}
+            <a class="sidebar-company" href="{% url 'company_select' %}" title="Şirketi değiştir">
+                <span><small>AKTİF ŞİRKET</small><strong>{{ request.company.name }}</strong></span>
+                <em>Değiştir</em>
+            </a>
+            {% endif %}
+
             <p class="nav-label">ÇALIŞMA ALANI</p>
             <nav class="navigation" aria-label="Ana gezinme">
                 <a class="nav-link{% if current == 'dashboard' %} active{% endif %}" href="{% url 'dashboard' %}"{% if current == 'dashboard' %} aria-current="page"{% endif %}>

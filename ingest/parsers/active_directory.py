@@ -1,4 +1,5 @@
-from ..models import SecurityEvent, Assets, Company
+from ..models import SecurityEvent, Company
+from .assets import resolve_asset
 
 
 def map_ad_activity(event_id):
@@ -15,18 +16,19 @@ def map_ad_status(event_id):
         return 2, "Failure"
     return 0, "Unknown"
 
-def active_directory_normalization(raw_payload):
-    company_id = raw_payload.get("company_id")
-    company, _ = Company.objects.get_or_create(id=company_id) if company_id else Company.objects.get_or_create(name="Default Company")
+def active_directory_normalization(raw_payload, company):
+    company = Company.objects.get(id=company.id)
 
-    asset, _ = Assets.objects.get_or_create(
-        ip_address=raw_payload.get("IpAddress", ""),
-        defaults={
-            "company": company, 
-            "hostname": raw_payload.get("WorkstationName", "")
-        },
+    asset = resolve_asset(
+        company,
+        hostname=raw_payload.get("WorkstationName"),
+        ip=raw_payload.get("IpAddress"),
+        mac=raw_payload.get("MacAddress") or raw_payload.get("Mac"),
+        asset_type=raw_payload.get("AssetType", "other"),
+        criticality=raw_payload.get("Criticality", "medium"),
+        is_public=raw_payload.get("IsPublic", False),
     )
-    
+
     event_id = raw_payload.get("EventID")
     ocsf_activity_id, ocsf_activity_str = map_ad_activity(event_id)
     ocsf_status_id, ocsf_status_str = map_ad_status(event_id)

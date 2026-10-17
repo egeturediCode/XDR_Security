@@ -139,7 +139,7 @@ def _matches_rule(event, rule, candidate_events):
 def correlation_service(security_event):
     detections = []
     
-    for rule in DetectionRule.objects.filter(is_active=True):
+    for rule in DetectionRule.objects.all():
         candidate_events = _events_for_rule(security_event, rule.parameters or {})
         if not _matches_rule(security_event, rule, candidate_events):
             continue

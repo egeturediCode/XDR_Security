@@ -1,0 +1,183 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#080d14">
+    <title>Şirket Seçimi | X_Security</title>
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}?v={% now 'U' %}">
+</head>
+<body>
+<main class="company-shell">
+    <header class="company-topbar">
+        <a class="brand" href="{% url 'company_select' %}">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M12 2.8 20 6v5.4c0 5.1-3.4 8.4-8 10.5-4.6-2.1-8-5.4-8-10.5V6l8-3.2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="m8.8 12.2 2.1 2.1 4.5-4.7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
+            <span>X_<span class="brand-light">Security</span></span>
+        </a>
+        <div class="company-user">
+            <span>{{ request.user.username }}</span>
+            <a href="{% url 'logout' %}">Çıkış yap</a>
+        </div>
+    </header>
+
+    <section class="page-heading" aria-labelledby="page-title">
+        <div>
+            <p class="eyebrow">ÇOKLU ŞİRKET ANALİZİ</p>
+            <h1 id="page-title">Şirket seç</h1>
+            <p class="page-subtitle">Analiz etmek istediğin şirketi seç. Dashboard, tespitler ve kayıtlar seçilen şirkete göre filtrelenir.</p>
+        </div>
+    </section>
+
+    {% if messages %}
+        <div class="flash-messages">
+            {% for message in messages %}
+                <div class="flash flash-{{ message.level_tag }}" role="status">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="company-grid">
+        <section class="panel" aria-labelledby="companies-title">
+            <div class="panel-heading">
+                <div>
+                    <p class="section-kicker">KAYITLI ŞİRKETLER</p>
+                    <h2 id="companies-title">{{ companies|length }} şirket</h2>
+                </div>
+            </div>
+            {% if companies %}
+                <div class="company-list">
+                    {% for company in companies %}
+                        <form method="post" action="{% url 'company_select' %}" class="company-card-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="company_id" value="{{ company.id }}">
+                            <button type="submit" class="company-card{% if company.id == active_company_id %} is-active{% endif %}">
+                                <span class="company-avatar" aria-hidden="true">{{ company.name|first|upper }}</span>
+                                <span class="company-info">
+                                    <span class="company-name-row">
+                                        <strong>{{ company.name }}</strong>
+                                        {% if company.id == active_company_id %}<span class="state-pill state-success">Seçili</span>{% endif %}
+                                        {% if not company.is_active %}<span class="state-pill">Pasif</span>{% endif %}
+                                    </span>
+                                    <span class="company-meta">{{ company.address|default:"Adres bilgisi yok" }}</span>
+                                    <span class="company-stats">
+                                        <span>{{ company.asset_count }} varlık</span>
+                                        <span class="meta-separator">·</span>
+                                        <span>{{ company.event_count }} olay</span>
+                                        <span class="meta-separator">·</span>
+                                        <span>{{ company.detection_count }} tespit</span>
+                                    </span>
+                                </span>
+                                <span class="company-arrow" aria-hidden="true">→</span>
+                            </button>
+                        </form>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <strong>Henüz şirket yok</strong>
+                    <span>Sağdaki formdan ilk şirketi kaydet.</span>
+                </div>
+            {% endif %}
+        </section>
+
+        <section class="panel" aria-labelledby="register-title">
+            <div class="panel-heading">
+                <div>
+                    <p class="section-kicker">YENİ ŞİRKET</p>
+                    <h2 id="register-title">Şirket kaydı</h2>
+                </div>
+                <span class="wizard-step" id="wizard-step">Adım 1 / 2</span>
+            </div>
+            <form class="company-form" id="company-form" method="post" action="{% url 'company_create' %}" novalidate>
+                {% csrf_token %}
+                {{ formset.management_form }}
+                {% if form.non_field_errors %}<div class="flash flash-error">{{ form.non_field_errors }}</div>{% endif %}
+                <div id="company-fields" class="company-fields">
+                {% for field in form %}
+                    {% if field.name == "is_active" %}
+                        <label class="check-field">{{ field }} <span>{{ field.label }}</span></label>
+                    {% else %}
+                        <div class="form-field">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+                            {{ field }}
+                            {% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+                <p class="form-hint">Tenant ID ve API anahtarı kayıt sırasında otomatik üretilir.</p>
+                </div>
+                <button type="button" class="form-submit" id="continue-btn"{% if open_assets %} hidden{% endif %}>Devam</button>
+
+                <div class="asset-panel" id="asset-panel"{% if not open_assets %} hidden{% endif %}>
+                    <div class="asset-panel-head">
+                        <div>
+                            <p class="section-kicker">VARLIKLAR</p>
+                            <strong>Şirkete bağlı cihazlar</strong>
+                        </div>
+                        <button type="button" class="filter-clear" id="add-asset">+ Varlık ekle</button>
+                    </div>
+                    {% if formset.non_form_errors %}<div class="flash flash-error">{{ formset.non_form_errors }}</div>{% endif %}
+                    <div id="asset-rows">
+                        {% for row in formset %}
+                            {% include "_asset_row.html" with row=row %}
+                        {% endfor %}
+                    </div>
+                    <p class="form-hint">İstediğin kadar varlık ekleyebilirsin. Boş bırakılan satırlar kaydedilmez.</p>
+                    <div class="wizard-actions">
+                        <button type="button" class="filter-clear" id="back-btn">Geri</button>
+                        <button type="submit" class="form-submit">İşlemi tamamla</button>
+                    </div>
+                </div>
+            </form>
+            <template id="asset-template">{% include "_asset_row.html" with row=formset.empty_form %}</template>
+        </section>
+    </div>
+</main>
+<script>
+(function () {
+    var form = document.getElementById('company-form');
+    var panel = document.getElementById('asset-panel');
+    var fields = document.getElementById('company-fields');
+    var cont = document.getElementById('continue-btn');
+    var step = document.getElementById('wizard-step');
+    var rows = document.getElementById('asset-rows');
+    var total = document.getElementById('id_assets-TOTAL_FORMS');
+    var tpl = document.getElementById('asset-template');
+
+    function setStep(two) {
+        panel.hidden = !two;
+        cont.hidden = two;
+        fields.classList.toggle('is-collapsed', two);
+        step.textContent = two ? 'Adım 2 / 2' : 'Adım 1 / 2';
+    }
+
+    function addRow() {
+        var index = parseInt(total.value, 10);
+        var html = tpl.innerHTML.replace(/__prefix__/g, index);
+        rows.insertAdjacentHTML('beforeend', html);
+        total.value = index + 1;
+    }
+
+    cont.addEventListener('click', function () {
+        var name = form.querySelector('[name="name"]');
+        if (!name.value.trim()) { name.reportValidity ? (name.setCustomValidity('Şirket adı zorunlu'), name.reportValidity(), name.setCustomValidity('')) : null; name.focus(); return; }
+        setStep(true);
+        if (!rows.children.length) addRow();
+    });
+    document.getElementById('back-btn').addEventListener('click', function () { setStep(false); });
+    document.getElementById('add-asset').addEventListener('click', addRow);
+    rows.addEventListener('click', function (event) {
+        var btn = event.target.closest('.asset-remove');
+        if (btn) btn.closest('.asset-row').remove();
+    });
+    if (!panel.hidden) setStep(true);
+})();
+</script>
+</body>
+</html>

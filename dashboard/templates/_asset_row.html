@@ -1,0 +1,16 @@
+<div class="asset-row">
+    <button type="button" class="asset-remove" aria-label="Satırı kaldır">×</button>
+    <div class="asset-row-grid">
+        {% for field in row %}
+            {% if field.name == "is_public" %}
+                <label class="check-field">{{ field }} <span>{{ field.label }}</span></label>
+            {% else %}
+                <div class="form-field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.name == "hostname" %} *{% endif %}</label>
+                    {{ field }}
+                    {% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+</div>

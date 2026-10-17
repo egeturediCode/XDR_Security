@@ -132,7 +132,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 LOGIN_URL = '/dashboard/login/'
-LOGIN_REDIRECT_URL = '/dashboard/'
+LOGIN_REDIRECT_URL = '/dashboard/companies/'
 LOGOUT_REDIRECT_URL = '/dashboard/login/'
 
 # Default primary key field type

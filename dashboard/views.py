@@ -1,17 +1,49 @@
 import json
 from datetime import timedelta
 
+from functools import wraps
+
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.core.paginator import Paginator
-from django.db.models import Q
-from django.shortcuts import get_object_or_404, render
+from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from analytics.models import Detection, ThreatIndicator
-from ingest.models import SecurityEvent
+from ingest.models import Company, SecurityEvent
+
+from .forms import AssetFormSet, CompanyForm
+
+COMPANY_SESSION_KEY = "company_id"
 
 
 SEVERITY_RANK = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+
+
+def company_required(view):
+    """Oturumda seçili şirket yoksa kullanıcıyı şirket seçim sayfasına yönlendirir."""
+
+    @wraps(view)
+    @login_required
+    def wrapper(request, *args, **kwargs):
+        company = Company.objects.filter(id=request.session.get(COMPANY_SESSION_KEY)).first()
+        if company is None:
+            request.session.pop(COMPANY_SESSION_KEY, None)
+            return redirect("company_select")
+        request.company = company
+        return view(request, *args, **kwargs)
+
+    return wrapper
+
+
+def _company_detections(company):
+    return Detection.objects.filter(events__asset__company=company).distinct()
+
+
+def _company_events(company):
+    return SecurityEvent.objects.filter(asset__company=company)
 
 
 def _detection_severity(detection):
@@ -58,15 +90,18 @@ def _event_row(event):
     }
 
 
-@login_required
+@company_required
 def dashboard(request):
     now = timezone.now()
     day_ago = now - timedelta(hours=24)
-    detections = Detection.objects.prefetch_related("events__asset", "detection_rules")
+    company_events = _company_events(request.company)
+    detections = _company_detections(request.company).prefetch_related(
+        "events__asset", "detection_rules"
+    )
     recent_detections = [_detection_row(item) for item in detections[:20]]
     recent_events = [
         _event_row(item)
-        for item in SecurityEvent.objects.select_related("asset").order_by("-created_at")[:20]
+        for item in company_events.select_related("asset").order_by("-created_at")[:20]
     ]
     high_severity_count = sum(
         row["severity"] in {"high", "critical"}
@@ -77,25 +112,28 @@ def dashboard(request):
         "detection_count": detections.count(),
         "high_severity_count": high_severity_count,
         "active_threat_ip_count": ThreatIndicator.objects.filter(
+            detections__in=detections,
             indicator_type=ThreatIndicator.IndicatorType.IP,
             is_active=True,
-        ).count(),
-        "events_today_count": SecurityEvent.objects.filter(created_at__gte=day_ago).count(),
+        ).distinct().count(),
+        "events_today_count": company_events.filter(created_at__gte=day_ago).count(),
         "recent_detections": recent_detections,
         "recent_events": recent_events,
-        "last_event_at": SecurityEvent.objects.order_by("-created_at").values_list(
+        "last_event_at": company_events.order_by("-created_at").values_list(
             "created_at", flat=True
         ).first(),
     }
     return render(request, "dashboard.html", context)
 
 
-@login_required
+@company_required
 def detections(request):
     query = request.GET.get("q", "").strip()
     severity = request.GET.get("severity", "").lower()
     status = request.GET.get("status", "").lower()
-    queryset = Detection.objects.prefetch_related("events__asset", "detection_rules")
+    queryset = _company_detections(request.company).prefetch_related(
+        "events__asset", "detection_rules"
+    )
     if query:
         queryset = queryset.filter(
             Q(name__icontains=query) | Q(description__icontains=query)
@@ -123,17 +161,17 @@ def detections(request):
     )
 
 
-@login_required
+@company_required
 def detection_detail(request, detection_id):
     detection = get_object_or_404(
-        Detection.objects.prefetch_related(
+        _company_detections(request.company).prefetch_related(
             "events__asset",
             "indicators",
             "detection_rules__mitre_techniques",
         ),
         id=detection_id,
     )
-    events = detection.events.select_related("asset").order_by("-created_at")
+    events = detection.events.filter(asset__company=request.company).select_related("asset").order_by("-created_at")
     return render(
         request,
         "detection_detail.html",
@@ -147,19 +185,19 @@ def detection_detail(request, detection_id):
     )
 
 
-@login_required
+@company_required
 def logs(request):
-    queryset = SecurityEvent.objects.select_related("asset").order_by("-created_at")
+    queryset = _company_events(request.company).select_related("asset").order_by("-created_at")
     page = Paginator([_event_row(item) for item in queryset], 25).get_page(
         request.GET.get("page")
     )
     return render(request, "logs.html", {"page": page, "total_count": queryset.count()})
 
 
-@login_required
+@company_required
 def log_detail(request, event_id):
     event = get_object_or_404(
-        SecurityEvent.objects.select_related("asset").prefetch_related(
+        _company_events(request.company).select_related("asset").prefetch_related(
             "detections__detection_rules",
             "detections__indicators",
         ),
@@ -174,3 +212,64 @@ def log_detail(request, event_id):
             "detections": event.detections.all(),
         },
     )
+
+
+def _company_select_response(request, form=None, formset=None, status=200):
+    companies = Company.objects.annotate(
+        asset_count=Count("assets", distinct=True),
+        event_count=Count("assets__securityevent", distinct=True),
+        detection_count=Count("assets__securityevent__detections", distinct=True),
+    ).order_by("name")
+    formset = formset or AssetFormSet(prefix="assets")
+    return render(
+        request,
+        "company_select.html",
+        {
+            "companies": companies,
+            "form": form or CompanyForm(),
+            "formset": formset,
+            "open_assets": bool(formset.is_bound and any(f.errors for f in formset.forms)),
+            "active_company_id": request.session.get(COMPANY_SESSION_KEY),
+        },
+        status=status,
+    )
+
+
+@login_required
+def company_select(request):
+    if request.method == "POST":
+        company = Company.objects.filter(id=request.POST.get("company_id")).first()
+        if company is None:
+            messages.error(request, "Seçilen şirket bulunamadı.")
+        else:
+            request.session[COMPANY_SESSION_KEY] = company.id
+            return redirect("dashboard")
+    return _company_select_response(request)
+
+
+@login_required
+def company_create(request):
+    if request.method != "POST":
+        return redirect("company_select")
+
+    form = CompanyForm(request.POST)
+    formset = AssetFormSet(request.POST, prefix="assets")
+    if not (form.is_valid() and formset.is_valid()):
+        return _company_select_response(request, form=form, formset=formset, status=400)
+
+    with transaction.atomic():
+        company = form.save()
+        assets = [
+            row.save(commit=False)
+            for row in formset.forms
+            if row.has_changed() and row.cleaned_data
+        ]
+        for asset in assets:
+            asset.company = company
+            asset.save()
+
+    messages.success(
+        request,
+        f"{company.name} kaydedildi, {len(assets)} varlık eklendi. API anahtarı: {company.api_key}",
+    )
+    return redirect("company_select")

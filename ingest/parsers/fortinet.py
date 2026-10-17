@@ -1,4 +1,5 @@
-from ..models import SecurityEvent, Assets, Company
+from ..models import SecurityEvent, Company
+from .assets import resolve_asset
 
 
 def map_fortinet_severity(level):
@@ -21,15 +22,19 @@ def map_fortinet_action(action):
         return 2, "Denied"
     return 0, "Unknown"
 
-def fortinet_normalization(raw_payload):
-    company_id = raw_payload.get("company_id")
-    company, _ = Company.objects.get_or_create(id=company_id) if company_id else Company.objects.get_or_create(name="Default Company")
+def fortinet_normalization(raw_payload, company):
+    company = Company.objects.get(id=company.id)
 
-    asset, _ = Assets.objects.get_or_create(
-        ip_address=raw_payload.get("srcip", ""),
-        defaults={"company": company},
+    asset = resolve_asset(
+        company,
+        hostname=raw_payload.get("hostname"),
+        ip=raw_payload.get("srcip") or raw_payload.get("host") or raw_payload.get("ip_address") or raw_payload.get("ip"),
+        mac=raw_payload.get("mac_address") or raw_payload.get("mac"),
+        asset_type=raw_payload.get("asset_type", "other"),
+        criticality=raw_payload.get("criticality", "medium"),
+        is_public=raw_payload.get("is_public", False),
     )
-    
+
     ocsf_severity_id, ocsf_severity_str = map_fortinet_severity(raw_payload.get("level", "notice"))
     ocsf_status_id, ocsf_status_str = map_fortinet_action(raw_payload.get("action", ""))
 

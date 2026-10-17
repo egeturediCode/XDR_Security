@@ -1,18 +1,21 @@
-from ..models import SecurityEvent, Assets, Company
+from ..models import SecurityEvent, Company
+from .assets import resolve_asset
 
 
-def crowdstrike_normalization(raw_payload):
+def crowdstrike_normalization(raw_payload, company):
     event_data = raw_payload.get("event", {})
-    
-    customer_id = raw_payload.get("metadata", {}).get("customerIDString")
-    company, _ = Company.objects.get_or_create(id=customer_id) if customer_id else Company.objects.get_or_create(name="Default Company")
+    company = Company.objects.get(id=company.id)
 
-    asset, _ = Assets.objects.get_or_create(
+    asset = resolve_asset(
+        company,
         hostname=event_data.get("ComputerName"),
-        ip_address=event_data.get("LocalIP"),
-        defaults={"company": company},
+        ip=event_data.get("LocalIP"),
+        mac=event_data.get("MacAddress") or event_data.get("Mac"),
+        asset_type=event_data.get("AssetType", "other"),
+        criticality=event_data.get("Criticality", "medium"),
+        is_public=event_data.get("IsPublic", False),
     )
-    
+
     severity_name = event_data.get("SeverityName", "Unknown")
     ocsf_severity_mapping = {
         "Low": 2, 

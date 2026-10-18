@@ -55,10 +55,12 @@
         </section>
 
         <section class="panel detail-card" aria-labelledby="timeline-title">
-            <h2 id="timeline-title">Olay zaman çizelgesi{% if event_total > timeline|length %} <small class="muted-note">(son {{ timeline|length }} / {{ event_total }})</small>{% endif %}</h2>
+            <h2 id="timeline-title">Olay zaman çizelgesi{% if timeline_total > timeline|length %} <small class="muted-note">(son {{ timeline|length }} / {{ timeline_total }})</small>{% endif %}</h2>
             {% if timeline %}
             <ol class="timeline">
-                {% for event in timeline %}
+                {% for item in timeline %}
+                {% if item.kind == 'event' %}
+                {% with event=item.obj %}
                 <li class="timeline-item">
                     <span class="timeline-dot severity-{{ event.severity|lower }}" aria-hidden="true"></span>
                     <a href="{% url 'log_detail' event.id %}">
@@ -67,6 +69,18 @@
                         <p class="event-description">{{ event.description }}</p>
                     </a>
                 </li>
+                {% endwith %}
+                {% else %}
+                {% with act=item.obj %}
+                <li class="timeline-item">
+                    <span class="timeline-dot {% if act.success %}severity-low{% else %}severity-high{% endif %}" aria-hidden="true"></span>
+                    <strong>İşlem · {{ act.action }}</strong>
+                    <small>{{ act.executed_at|date:"d.m.Y H:i:s" }} · {% if act.executed_by %}{{ act.executed_by.username }}{% else %}Sistem{% endif %}{% if not act.success %} · başarısız{% endif %}</small>
+                    {% if act.message %}<p class="event-description">{{ act.message }}</p>{% endif %}
+                    {% if act.params %}<p class="event-description">{% for k, v in act.params.items %}{{ k }}: {{ v }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+                </li>
+                {% endwith %}
+                {% endif %}
                 {% endfor %}
             </ol>
             {% else %}<p class="empty-inline">Olay bulunamadı.</p>{% endif %}

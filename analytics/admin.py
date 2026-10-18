@@ -1,3 +1,7 @@
 from django.contrib import admin
 
-# Register your models here.
+from audit.admin import AuditedModelAdmin
+
+from .models import DetectionRule
+
+admin.site.register(DetectionRule, AuditedModelAdmin)

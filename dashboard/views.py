@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 from django.utils import timezone
 
 from analytics.models import Detection, ThreatIndicator
+from audit.services import create_audit_log
 from incident_management.models import Incident
 from incident_management.services import INCIDENT_ACTIONS, incident_action
 from ingest.models import Company, SecurityEvent
@@ -335,7 +336,12 @@ def incident_detail(request, incident_id):
             }
         )
 
-    timeline = sorted(events.values(), key=lambda e: e.created_at, reverse=True)
+    timeline = [{"kind": "event", "at": e.created_at, "obj": e} for e in events.values()]
+    timeline += [
+        {"kind": "action", "at": a.executed_at, "obj": a}
+        for a in incident.actions.select_related("executed_by")
+    ]
+    timeline.sort(key=lambda item: item["at"], reverse=True)
     sources = {str(e.source).lower() for e in events.values()}
     response_services = [
         {"key": key, "name": name, "actions": actions}
@@ -353,7 +359,8 @@ def incident_detail(request, incident_id):
             "indicators": list(indicators.values()),
             "techniques": list(techniques.values()),
             "timeline": timeline[:50],
-            "event_total": len(timeline),
+            "event_total": len(events),
+            "timeline_total": len(timeline),
             "is_active": incident.status in ("open", "investigating"),
             "response_services": response_services,
             "response_unlocked": incident.status == "investigating",
@@ -381,7 +388,22 @@ def incident_update(request, incident_id):
         user = request.user if action in ("investigate", "assign") else None
         if action == "assign" and request.POST.get("release"):
             user = None
-        incident_action(incident, action, note=note, user=user)
+        old_status, old_assignee = incident.status, incident.assigned_to
+        incident_action(incident, action, actor=request.user, note=note, user=user)
+        incident.refresh_from_db()
+        if incident.status != old_status:
+            create_audit_log(
+                "INCIDENT_STATUS_CHANGED", request=request, target=incident,
+                details={"action": action, "old": old_status, "new": incident.status, "note": note},
+            )
+        if incident.assigned_to_id != (old_assignee.pk if old_assignee else None):
+            create_audit_log(
+                "INCIDENT_ASSIGNED", request=request, target=incident,
+                details={
+                    "old": old_assignee.get_username() if old_assignee else None,
+                    "new": incident.assigned_to.get_username() if incident.assigned_to else None,
+                },
+            )
         messages.success(request, "Vaka güncellendi.")
     return redirect("incident_detail", incident_id=incident.id)
 
@@ -439,6 +461,9 @@ def company_create(request):
         for asset in assets:
             asset.company = company
             asset.save()
+        create_audit_log("COMPANY_CREATED", request=request, target=company)
+        for asset in assets:
+            create_audit_log("ASSET_CREATED", request=request, target=asset)
 
     messages.success(
         request,

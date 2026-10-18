@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from ingest.parsers.base import process_incoming_log
-from incident_management.services import incident_action, INCIDENT_ACTIONS
+from incident_management.services import SERVICE_ACTION_NAMES, incident_action, INCIDENT_ACTIONS
 from incident_management.models import Incident
 from ingest.models import Company
 
@@ -55,10 +55,6 @@ SERVICE_ACTION_CREDENTIALS = {
     "nessus_url": "NESSUS_URL",
     "nessus_token": "NESSUS_TOKEN",
 }
-SERVICE_ACTION_NAMES = (
-    "disable_user", "force_password_reset", "trigger_scan", "isolate_device",
-    "kill_process", "quarantine_file", "ban_ip_address", "block_port", "block_domain",
-)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def response_incident_action(request):
@@ -90,7 +86,7 @@ def response_incident_action(request):
         else:
             return Response({"error": f"Missing parameter: {name}"}, status=status.HTTP_400_BAD_REQUEST)
 
-    success, message = incident_action(incident, action, **kwargs)
+    success, message = incident_action(incident, action, actor=request.user, **kwargs)
     return Response(
         {"success": success, "message": message},
         status=status.HTTP_200_OK if success else status.HTTP_502_BAD_GATEWAY,

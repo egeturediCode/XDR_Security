@@ -4,7 +4,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import Incident
+from .models import Incident, IncidentAction
 from .payloads.ad_payloads import action_disable_user, action_force_password_reset
 from .payloads.nessus_payloads import action_trigger_scan
 from .payloads.crowdstrike_payloads import action_isolate_device, action_kill_process, action_quarantine_file
@@ -187,10 +187,37 @@ def incident_correlation(detections):
     return incidents
 
 
-def incident_action(incident, action, **kwargs):
-    result = None
-    if incident and action in INCIDENT_ACTIONS:
+SECRET_PARAMS = {"ms_graph_token", "crowdstrike_token", "fw_token", "nessus_token"}
+SERVICE_ACTION_NAMES = {
+    "disable_user", "force_password_reset", "trigger_scan", "isolate_device",
+    "kill_process", "quarantine_file", "ban_ip_address", "block_port", "block_domain",
+}
+
+
+def _record_action(incident, action, params, actor, success=True, message=""):
+    return IncidentAction.objects.create(
+        incident=incident,
+        action=action,
+        params={k: v for k, v in params.items() if k not in SECRET_PARAMS},
+        executed_by=actor if getattr(actor, "pk", None) else None,
+        success=success,
+        message=message,
+    )
+
+
+def incident_action(incident, action, actor=None, **kwargs):
+    """Run an action and record it. Service actions return (success, message)."""
+    if not incident or action not in INCIDENT_ACTIONS:
+        return None
+    if action in SERVICE_ACTION_NAMES:
         result = INCIDENT_ACTIONS[action](**kwargs)
-        if result:
+        success, message = result if isinstance(result, tuple) else (bool(result), "")
+        _record_action(incident, action, kwargs, actor, success, message)
+        if success:
             incident.save(update_fields=["updated_at"])
-    return result
+        return success, message
+
+    INCIDENT_ACTIONS[action](incident, **kwargs)
+    params = {"note": kwargs["note"]} if kwargs.get("note") else {}
+    _record_action(incident, action, params, actor)
+    return None

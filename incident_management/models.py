@@ -46,3 +46,20 @@ class Incident(models.Model):
 
     def __str__(self):
         return f"INC-{self.id} | {self.title} ({self.get_severity_display()})"
+
+
+class IncidentAction(models.Model):
+    incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name='actions')
+    action = models.CharField(max_length=255)
+    params = models.JSONField(default=dict, blank=True)
+    success = models.BooleanField(default=True)
+    message = models.TextField(blank=True)
+    executed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='executed_actions')
+    executed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-executed_at']
+        indexes = [models.Index(fields=['incident', '-executed_at'])]
+
+    def __str__(self):
+        return f"ACTION-{self.id} | {self.action} on Incident {self.incident_id}"

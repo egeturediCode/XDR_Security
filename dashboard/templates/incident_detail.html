@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load dashboard_extras %}
+
+{% block title %}INC-{{ incident.id }}{% endblock %}
+{% block breadcrumb %}Vaka INC-{{ incident.id }}{% endblock %}
+
+{% block content %}
+<section class="page-heading" aria-labelledby="page-title">
+    <div class="detail-heading">
+        <div>
+            <p class="eyebrow">VAKA ANALIZI · INC-{{ incident.id }}</p>
+            <h1 id="page-title">{{ incident.title }}</h1>
+            <p class="detail-description">{{ incident.description|default:"Bu vaka için açıklama yok." }}</p>
+        </div>
+        <div class="incident-badges">
+            <span class="severity-label severity-text-{{ incident.severity }}">{{ incident.severity|tr }}</span>
+            <span class="state-pill incident-status-{{ incident.status }}">{{ incident.status|tr }}</span>
+        </div>
+    </div>
+</section>
+
+<a class="back-link" href="{% url 'incidents' %}">← Vaka listesine dön</a>
+
+<div class="detail-grid">
+    <div class="detail-stack">
+        <section class="panel detail-card" aria-labelledby="summary-title">
+            <h2 id="summary-title">Vaka özeti</h2>
+            <dl class="detail-list">
+                <dt>Oluşturulma</dt><dd>{{ incident.created_at|date:"d.m.Y H:i:s" }}</dd>
+                <dt>Son güncelleme</dt><dd>{{ incident.updated_at|date:"d.m.Y H:i:s" }}</dd>
+                {% if incident.resolved_at %}<dt>Sonuçlanma</dt><dd>{{ incident.resolved_at|date:"d.m.Y H:i:s" }}</dd>{% endif %}
+                <dt>Atanan analist</dt><dd>{% if incident.assigned_to %}{{ incident.assigned_to.username }}{% else %}Atanmadı{% endif %}</dd>
+                <dt>Tespit</dt><dd>{{ detections|length }}</dd>
+                <dt>Olay</dt><dd>{{ event_total }}</dd>
+                <dt>Etkilenen varlık</dt><dd>{{ assets|length }}</dd>
+            </dl>
+            {% if incident.resolution_note %}
+            <div class="resolution-note"><strong>Çözüm notu</strong><p>{{ incident.resolution_note }}</p></div>
+            {% endif %}
+        </section>
+
+        <section class="panel detail-card" aria-labelledby="det-title">
+            <h2 id="det-title">Vakaya bağlı tespitler</h2>
+            {% if detections %}
+            <div class="related-list">
+                {% for item in detections %}
+                <a class="related-item" href="{% url 'detection_detail' item.obj.id %}">
+                    <strong>{{ item.obj.name }} <span class="severity-label severity-text-{{ item.severity }}">{{ item.severity|tr }}</span></strong>
+                    <small>{{ item.obj.created_at|date:"d.m.Y H:i:s" }} · {{ item.event_count }} olay{% if item.rules %} · {{ item.rules|join:", " }}{% endif %}</small>
+                    <p class="event-description">{{ item.obj.description }}</p>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}<p class="empty-inline">Bağlı tespit yok.</p>{% endif %}
+        </section>
+
+        <section class="panel detail-card" aria-labelledby="timeline-title">
+            <h2 id="timeline-title">Olay zaman çizelgesi{% if event_total > timeline|length %} <small class="muted-note">(son {{ timeline|length }} / {{ event_total }})</small>{% endif %}</h2>
+            {% if timeline %}
+            <ol class="timeline">
+                {% for event in timeline %}
+                <li class="timeline-item">
+                    <span class="timeline-dot severity-{{ event.severity|lower }}" aria-hidden="true"></span>
+                    <a href="{% url 'log_detail' event.id %}">
+                        <strong>{{ event.source }} · {{ event.asset.hostname }}</strong>
+                        <small>{{ event.created_at|date:"d.m.Y H:i:s" }} · {{ event.severity }}</small>
+                        <p class="event-description">{{ event.description }}</p>
+                    </a>
+                </li>
+                {% endfor %}
+            </ol>
+            {% else %}<p class="empty-inline">Olay bulunamadı.</p>{% endif %}
+        </section>
+    </div>
+
+    <aside class="detail-stack">
+        <section class="panel detail-card" aria-labelledby="action-title">
+            <h2 id="action-title">İşlemler</h2>
+            <form method="post" action="{% url 'incident_update' incident.id %}" class="incident-actions">
+                {% csrf_token %}
+                {% if is_active %}
+                <textarea name="note" rows="3" placeholder="Çözüm notu (kapatırken zorunlu)" aria-label="Çözüm notu"></textarea>
+                <div class="action-grid">
+                    {% if incident.status == 'open' %}<button name="action" value="investigate" class="action-btn primary">İncelemeye al</button>{% endif %}
+                    <button name="action" value="resolve" class="action-btn">Çözüldü</button>
+                    <button name="action" value="close" class="action-btn">Kapat</button>
+                    <button name="action" value="false_positive" class="action-btn danger">Yanlış alarm</button>
+                </div>
+                {% else %}
+                <button name="action" value="reopen" class="action-btn primary">Vakayı yeniden aç</button>
+                {% endif %}
+                {% if incident.assigned_to_id != request.user.id %}
+                <button name="action" value="assign" class="action-btn">Bana ata</button>
+                {% endif %}
+            </form>
+        </section>
+
+        <section class="panel detail-card" aria-labelledby="asset-title">
+            <h2 id="asset-title">Etkilenen varlıklar</h2>
+            {% if assets %}
+            <div class="related-list">
+                {% for asset in assets %}
+                <div class="related-item">
+                    <strong>{{ asset.hostname }}</strong>
+                    <small>{{ asset.ip_address|default:"IP yok" }} · {{ asset.get_asset_type_display }} · {{ asset.get_criticality_display }}</small>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}<p class="empty-inline">Varlık yok.</p>{% endif %}
+        </section>
+
+        {% if users %}
+        <section class="panel detail-card" aria-labelledby="user-title">
+            <h2 id="user-title">İlgili kullanıcılar</h2>
+            <div class="tag-list">{% for user in users %}<span class="tag">{{ user }}</span>{% endfor %}</div>
+        </section>
+        {% endif %}
+
+        <section class="panel detail-card" aria-labelledby="ioc-title">
+            <h2 id="ioc-title">Tehdit göstergeleri</h2>
+            {% if indicators %}
+            <div class="tag-list">{% for item in indicators %}<span class="tag indicator-tag">{{ item.value }}</span>{% endfor %}</div>
+            {% else %}<p class="empty-inline">Eşleşen gösterge yok.</p>{% endif %}
+        </section>
+
+        <section class="panel detail-card" aria-labelledby="mitre-title">
+            <h2 id="mitre-title">MITRE ATT&amp;CK</h2>
+            {% if techniques %}
+            <div class="tag-list">{% for item in techniques %}<span class="tag">{{ item }}</span>{% endfor %}</div>
+            {% else %}<p class="empty-inline">Eşleşen teknik yok.</p>{% endif %}
+        </section>
+    </aside>
+</div>
+{% endblock %}

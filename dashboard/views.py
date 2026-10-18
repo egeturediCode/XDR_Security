@@ -9,9 +9,12 @@ from django.db import transaction
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 from django.utils import timezone
 
 from analytics.models import Detection, ThreatIndicator
+from incident_management.models import Incident
+from incident_management.services import INCIDENT_ACTIONS, incident_action
 from ingest.models import Company, SecurityEvent
 
 from .forms import AssetFormSet, CompanyForm
@@ -23,8 +26,6 @@ SEVERITY_RANK = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 
 
 def company_required(view):
-    """Oturumda seçili şirket yoksa kullanıcıyı şirket seçim sayfasına yönlendirir."""
-
     @wraps(view)
     @login_required
     def wrapper(request, *args, **kwargs):
@@ -47,6 +48,8 @@ def _company_events(company):
 
 
 def _detection_severity(detection):
+    if detection.severity:
+        return detection.severity
     rule_severities = list(detection.detection_rules.values_list("severity", flat=True))
     if rule_severities:
         return max(rule_severities, key=lambda value: SEVERITY_RANK.get(value, 0))
@@ -212,6 +215,154 @@ def log_detail(request, event_id):
             "detections": event.detections.all(),
         },
     )
+
+
+def _company_incidents(company):
+    return Incident.objects.filter(detection__events__asset__company=company).distinct()
+
+
+def _incident_row(incident, company_id):
+    detections = list(incident.detection.all())
+    assets = {}
+    for detection in detections:
+        for event in detection.events.all():
+            if event.asset.company_id == company_id:
+                assets[event.asset_id] = event.asset
+    return {
+        "obj": incident,
+        "id": incident.id,
+        "title": incident.title,
+        "description": incident.description,
+        "severity": incident.severity,
+        "status": incident.status,
+        "assigned_to": incident.assigned_to,
+        "detection_count": len(detections),
+        "hostnames": sorted(a.hostname for a in assets.values()),
+        "created_at": incident.created_at,
+        "updated_at": incident.updated_at,
+    }
+
+
+@company_required
+def incidents(request):
+    query = request.GET.get("q", "").strip()
+    severity = request.GET.get("severity", "").lower()
+    status = request.GET.get("status", "").lower()
+
+    base = _company_incidents(request.company)
+    stats = {
+        "open": base.filter(status="open").count(),
+        "investigating": base.filter(status="investigating").count(),
+        "critical": base.filter(
+            status__in=("open", "investigating"), severity__in=("critical", "high")
+        ).count(),
+        "done": base.filter(status__in=("resolved", "closed", "false_positive")).count(),
+        "total": base.count(),
+    }
+
+    queryset = base.select_related("assigned_to").prefetch_related(
+        "detection__events__asset"
+    )
+    if query:
+        queryset = queryset.filter(Q(title__icontains=query) | Q(description__icontains=query))
+    if severity:
+        queryset = queryset.filter(severity=severity)
+    if status:
+        queryset = queryset.filter(status=status)
+
+    rows = []
+    for incident in queryset.order_by("-created_at"):
+        rows.append(_incident_row(incident, request.company.id))
+
+    page = Paginator(rows, 20).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "incidents.html",
+        {
+            "page": page,
+            "stats": stats,
+            "total_count": len(rows),
+            "query": query,
+            "severity": severity,
+            "status": status,
+            "severity_choices": ("critical", "high", "medium", "low"),
+            "status_choices": [c[0] for c in Incident.STATUS_CHOICES],
+        },
+    )
+
+
+@company_required
+def incident_detail(request, incident_id):
+    incident = get_object_or_404(
+        _company_incidents(request.company).select_related("assigned_to"),
+        id=incident_id,
+    )
+    company = request.company
+    detections = []
+    assets, users, indicators, techniques = {}, set(), {}, {}
+    events = {}
+    for detection in incident.detection.prefetch_related(
+        "events__asset", "indicators", "detection_rules__mitre_techniques"
+    ).order_by("created_at"):
+        det_events = [e for e in detection.events.all() if e.asset.company_id == company.id]
+        if not det_events:
+            continue
+        for event in det_events:
+            assets[event.asset_id] = event.asset
+            events[event.id] = event
+            name = ((event.metadata or {}).get("user") or {}).get("name")
+            if name:
+                users.add(name)
+        for indicator in detection.indicators.all():
+            indicators[indicator.id] = indicator
+        for rule in detection.detection_rules.all():
+            for technique in rule.mitre_techniques.all():
+                techniques[technique.id] = technique
+        detections.append(
+            {
+                "obj": detection,
+                "severity": _detection_severity(detection),
+                "rules": [r.name for r in detection.detection_rules.all()],
+                "event_count": len(det_events),
+            }
+        )
+
+    timeline = sorted(events.values(), key=lambda e: e.created_at, reverse=True)
+    return render(
+        request,
+        "incident_detail.html",
+        {
+            "incident": incident,
+            "detections": detections,
+            "assets": sorted(assets.values(), key=lambda a: a.hostname),
+            "users": sorted(users),
+            "indicators": list(indicators.values()),
+            "techniques": list(techniques.values()),
+            "timeline": timeline[:50],
+            "event_total": len(timeline),
+            "is_active": incident.status in ("open", "investigating"),
+        },
+    )
+
+
+@company_required
+@require_POST
+def incident_update(request, incident_id):
+    incident = get_object_or_404(_company_incidents(request.company), id=incident_id)
+    action = request.POST.get("action", "")
+    note = request.POST.get("note", "").strip()
+
+    if action not in INCIDENT_ACTIONS:
+        messages.error(request, "Geçersiz işlem.")
+    elif action in ("resolve", "close", "false_positive") and not note:
+        messages.error(request, "Vakayı kapatırken çözüm notu girmelisin.")
+    else:
+        user = request.user if action in ("investigate", "assign") else None
+        if action == "assign" and request.POST.get("release"):
+            user = None
+        incident_action(incident, action, note=note, user=user)
+        messages.success(request, "Vaka güncellendi.")
+    return redirect("incident_detail", incident_id=incident.id)
 
 
 def _company_select_response(request, form=None, formset=None, status=200):

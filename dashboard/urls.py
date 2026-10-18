@@ -13,6 +13,9 @@ urlpatterns = [
         views.detection_detail,
         name="detection_detail",
     ),
+    path("incidents/", views.incidents, name="incidents"),
+    path("incidents/<int:incident_id>/", views.incident_detail, name="incident_detail"),
+    path("incidents/<int:incident_id>/update/", views.incident_update, name="incident_update"),
     path("logs/", views.logs, name="logs"),
     path("logs/<int:event_id>/", views.log_detail, name="log_detail"),
     path(

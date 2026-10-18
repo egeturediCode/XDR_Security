@@ -153,6 +153,7 @@ def correlation_service(security_event):
             detection = Detection.objects.create(
                 name=rule.name,
                 description=rule.description,
+                severity=rule.severity,
             )
             detection.detection_rules.add(rule)
 
@@ -161,34 +162,149 @@ def correlation_service(security_event):
         
     return detections
 
+VENDOR_DETECTION_UID = 2001
+SEVERITY_RANK = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+
+FORTINET_THREAT_KEYWORDS = (
+    "ips", "intrusion", "botnet", "malware", "virus", "exploit",
+    "c2", "command and control", "trojan", "ransomware", "attack",
+)
+
+# Event ID -> (tespit adı, açıklama, ciddiyet)
+AD_SENSITIVE_EVENTS = {
+    1102: ("Güvenlik olay günlüğü temizlendi", "Windows güvenlik günlüğü temizlendi; iz silme girişimi olabilir.", "high"),
+    104: ("Sistem olay günlüğü temizlendi", "Windows sistem günlüğü temizlendi; iz silme girişimi olabilir.", "high"),
+    4719: ("Denetim politikası değiştirildi", "Sistem denetim politikası değiştirildi.", "high"),
+    4720: ("Yeni kullanıcı hesabı oluşturuldu", "Etki alanında yeni bir kullanıcı hesabı oluşturuldu.", "medium"),
+    4728: ("Güvenlik grubuna üye eklendi", "Global güvenlik grubuna yeni üye eklendi.", "medium"),
+    4732: ("Yerel gruba üye eklendi", "Yerel güvenlik grubuna yeni üye eklendi.", "medium"),
+    4756: ("Evrensel gruba üye eklendi", "Evrensel güvenlik grubuna yeni üye eklendi.", "medium"),
+    4740: ("Hesap kilitlendi", "Kullanıcı hesabı kilitlendi; parola deneme saldırısı olabilir.", "medium"),
+    4697: ("Yeni servis kuruldu", "Sistemde yeni bir servis kuruldu.", "medium"),
+    4698: ("Zamanlanmış görev oluşturuldu", "Yeni bir zamanlanmış görev oluşturuldu.", "medium"),
+}
+PRIVILEGED_GROUPS = ("domain admins", "enterprise admins", "administrators", "schema admins")
+
+
+def _rank(severity):
+    return SEVERITY_RANK.get(str(severity).lower(), 0)
+
+
+def _normalize_severity(value, default="medium"):
+    value = str(value or "").lower()
+    if value in SEVERITY_RANK:
+        return value
+    if value in ("fatal", "emergency"):
+        return "critical"
+    if value in ("informational", "info", "unknown", ""):
+        return default
+    return default
+
+
+def _direct_findings(event):
+    """Satıcının kendi ürettiği, korelasyon gerektirmeyen bulgular."""
+    metadata = event.metadata or {}
+    uid = metadata.get("class_uid")
+    severity_id = metadata.get("severity_id") or 0
+    message = str(metadata.get("message", ""))
+    findings = []
+
+    if uid == VENDOR_DETECTION_UID:
+        findings.append((
+            f"EDR tespiti: {event.description[:80]}",
+            event.description,
+            _normalize_severity(event.severity, "high"),
+        ))
+
+    elif uid == 2002 and severity_id >= 4:
+        title = _event_value(event, "unmapped", "plugin_name") or "Zafiyet bulgusu"
+        findings.append((
+            f"Yüksek riskli zafiyet: {title}",
+            event.description,
+            "critical" if severity_id >= 5 else "high",
+        ))
+
+    elif uid == 4001:
+        lowered = message.lower()
+        if severity_id >= 5:
+            findings.append((
+                "Güvenlik duvarı kritik uyarısı",
+                event.description,
+                "critical",
+            ))
+        elif any(word in lowered for word in FORTINET_THREAT_KEYWORDS):
+            findings.append((
+                "Ağ geçidi tehdit imzası eşleşmesi",
+                event.description,
+                "high" if severity_id >= 4 else "medium",
+            ))
+
+    elif uid == 3002:
+        event_id = _event_value(event, "unmapped", "EventID")
+        try:
+            event_id = int(event_id)
+        except (TypeError, ValueError):
+            event_id = None
+        known = AD_SENSITIVE_EVENTS.get(event_id)
+        if known:
+            name, description, severity = known
+            lowered = message.lower()
+            if event_id in (4728, 4732, 4756) and any(g in lowered for g in PRIVILEGED_GROUPS):
+                name, severity = "Ayrıcalıklı gruba üye eklendi", "high"
+            findings.append((name, f"{description} {message}".strip(), severity))
+
+    return findings
+
+
+def _ioc_matches(event):
+    return [
+        match
+        for value, kind in _event_indicators(event)
+        if (match := check_ioc_in_threatfox(value, kind))
+    ]
+
+
 @transaction.atomic
 def create_detection(security_event, class_uid=None):
-    if class_uid is not None:
+    detections = []
+
+    # Satıcı tespitleri (EDR) kural motorunu atlar; diğer loglar korelasyondan da geçer.
+    if class_uid != VENDOR_DETECTION_UID:
+        detections.extend(correlation_service(security_event))
+
+    for name, description, severity in _direct_findings(security_event):
         detection = Detection.objects.create(
-            name=f"Detected event: {class_uid}",
-            description=security_event.description,
+            name=name, description=description, severity=severity
         )
         detection.events.add(security_event)
-        return [detection]
-    return correlation_service(security_event)
+        detections.append(detection)
+
+    if not detections:
+        matches = _ioc_matches(security_event)
+        if matches:
+            detection = Detection.objects.create(
+                name="Tehdit istihbaratı eşleşmesi",
+                description=f"{', '.join(sorted({m.value for m in matches}))} göstergesi ThreatFox ile eşleşti.",
+                severity="critical",
+            )
+            detection.events.add(security_event)
+            detections.append(detection)
+
+    return detections
+
 
 def detection_engine(security_event):
     class_uid = (security_event.metadata or {}).get("class_uid")
-
-    detections = create_detection(
-        security_event,
-        class_uid=class_uid if class_uid == 2001 else None,
-    )
+    detections = create_detection(security_event, class_uid=class_uid)
 
     for detection in detections:
         matched_indicators = []
         for event in detection.events.all():
-            matched_indicators.extend(
-                match
-                for value, indicator_type in _event_indicators(event)
-                if (match := check_ioc_in_threatfox(value, indicator_type))
-            )
+            matched_indicators.extend(_ioc_matches(event))
         if matched_indicators:
             detection.indicators.add(*set(matched_indicators))
-            
+            if _rank(detection.severity) < _rank("high"):
+                detection.severity = "high"
+                detection.save(update_fields=["severity"])
+
     return detections

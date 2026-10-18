@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% load dashboard_extras %}
+
+{% block title %}Vakalar{% endblock %}
+{% block breadcrumb %}Vakalar{% endblock %}
+
+{% block content %}
+<section class="page-heading" aria-labelledby="page-title">
+    <div>
+        <p class="eyebrow">MUDAHALE TAKIBI</p>
+        <h1 id="page-title">Vakalar</h1>
+        <p class="page-subtitle">Aynı varlık veya kullanıcıya ait tespitler tek vakada toplanır.</p>
+    </div>
+    <div class="updated-label"><span class="updated-dot" aria-hidden="true"></span> {{ stats.total }} vaka</div>
+</section>
+
+<section class="metrics-grid" aria-label="Vaka özeti">
+    <article class="metric-card">
+        <div class="metric-topline"><span class="metric-icon red" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3 21 19H3L12 3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9v4m0 3h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="metric-period">YENİ</span></div>
+        <p class="metric-label">Açık vaka</p>
+        <p class="metric-value">{{ stats.open }}</p>
+        <p class="metric-footnote">Analist bekleyen vakalar</p>
+    </article>
+    <article class="metric-card">
+        <div class="metric-topline"><span class="metric-icon amber" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.7"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span><span class="metric-period">AKTİF</span></div>
+        <p class="metric-label">İncelenen vaka</p>
+        <p class="metric-value">{{ stats.investigating }}</p>
+        <p class="metric-footnote">Üzerinde çalışılan vakalar</p>
+    </article>
+    <article class="metric-card">
+        <div class="metric-topline"><span class="metric-icon blue" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.8 20 6v5.4c0 5.1-3.4 8.4-8 10.5-4.6-2.1-8-5.4-8-10.5V6l8-3.2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span><span class="metric-period">ÖNCELİK</span></div>
+        <p class="metric-label">Yüksek öncelikli aktif</p>
+        <p class="metric-value">{{ stats.critical }}</p>
+        <p class="metric-footnote">Yüksek veya kritik, kapanmamış</p>
+    </article>
+    <article class="metric-card">
+        <div class="metric-topline"><span class="metric-icon green" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="metric-period">TAMAM</span></div>
+        <p class="metric-label">Sonuçlanan vaka</p>
+        <p class="metric-value">{{ stats.done }}</p>
+        <p class="metric-footnote">Çözüldü, kapatıldı veya yanlış alarm</p>
+    </article>
+</section>
+
+<section style="margin-top: 2rem;" class="panel" aria-labelledby="list-title">
+    <div class="panel-heading">
+        <div>
+            <p class="section-kicker">VAKA LİSTESİ</p>
+            <h2 id="list-title">{{ total_count }} sonuç</h2>
+        </div>
+    </div>
+
+    <form class="filter-bar" method="get" role="search">
+        <input type="search" name="q" value="{{ query }}" placeholder="Vaka ara" aria-label="Vaka ara">
+        <select name="severity" aria-label="Önem düzeyi">
+            <option value="">Tüm önem düzeyleri</option>
+            {% for item in severity_choices %}<option value="{{ item }}"{% if severity == item %} selected{% endif %}>{{ item|tr }}</option>{% endfor %}
+        </select>
+        <select name="status" aria-label="Durum">
+            <option value="">Tüm durumlar</option>
+            {% for item in status_choices %}<option value="{{ item }}"{% if status == item %} selected{% endif %}>{{ item|tr }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="filter-submit">Filtrele</button>
+        {% if query or severity or status %}<a class="filter-clear" href="{% url 'incidents' %}">Temizle</a>{% endif %}
+    </form>
+
+    {% if page.object_list %}
+    <div class="detection-list">
+        {% for incident in page.object_list %}
+        <article class="detection-row">
+            <span class="severity-marker severity-{{ incident.severity }}" aria-hidden="true"></span>
+            <div class="detection-info">
+                <div class="detection-title-row">
+                    <h3><a href="{% url 'incident_detail' incident.id %}">INC-{{ incident.id }} · {{ incident.title }}</a></h3>
+                    <span class="severity-label severity-text-{{ incident.severity }}">{{ incident.severity|tr }}</span>
+                </div>
+                <p>{{ incident.description }}</p>
+                <div class="detection-meta">
+                    <span>{{ incident.hostnames|join:", "|default:"Varlık bilgisi yok" }}</span>
+                    <span class="meta-separator">·</span>
+                    <span>{{ incident.detection_count }} tespit</span>
+                    <span class="meta-separator">·</span>
+                    <span>{% if incident.assigned_to %}{{ incident.assigned_to.username }}{% else %}Atanmadı{% endif %}</span>
+                    <span class="meta-separator">·</span>
+                    <span>{{ incident.created_at|date:"d.m.Y H:i" }}</span>
+                </div>
+            </div>
+            <span class="state-pill incident-status-{{ incident.status }}">{{ incident.status|tr }}</span>
+        </article>
+        {% endfor %}
+    </div>
+    {% if page.paginator.num_pages > 1 %}
+    <nav class="pagination" aria-label="Sayfalama">
+        {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}&q={{ query|urlencode }}&severity={{ severity }}&status={{ status }}">← Önceki</a>{% endif %}
+        <span>Sayfa {{ page.number }} / {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a href="?page={{ page.next_page_number }}&q={{ query|urlencode }}&severity={{ severity }}&status={{ status }}">Sonraki →</a>{% endif %}
+    </nav>
+    {% endif %}
+    {% else %}
+    <div class="empty-state"><strong>Vaka bulunamadı</strong><span>Filtreleri değiştir veya yeni log gelmesini bekle.</span></div>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,5 +1,6 @@
 from .registry import normalization_registry
 from analytics.services import detection_engine
+from incident_management.services import incident_correlation
 
 def process_incoming_log(source_name, raw_payload, company):
     registry = normalization_registry()
@@ -9,5 +10,6 @@ def process_incoming_log(source_name, raw_payload, company):
         raise ValueError(f"Desteklenmeyen veri kaynağı: {source_name}")
         
     event = parser_func(raw_payload, company)
-    detection_engine(event)
+    detections = detection_engine(event)
+    incident_correlation(detections)
     return event

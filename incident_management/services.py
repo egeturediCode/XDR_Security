@@ -5,6 +5,10 @@ from django.db.models import Q
 from django.utils import timezone
 
 from .models import Incident
+from .payloads.ad_payloads import action_disable_user, action_force_password_reset
+from .payloads.nessus_payloads import action_trigger_scan
+from .payloads.crowdstrike_payloads import action_isolate_device, action_kill_process, action_quarantine_file
+from .payloads.fortinet_payloads import action_ban_ip_address, action_block_port, action_block_domain
 
 SEVERITY_RANK = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 ACTIVE_STATUSES = ("open", "investigating")
@@ -52,6 +56,28 @@ def _assign(incident, user=None, **_):
     incident.save(update_fields=["assigned_to", "updated_at"])
     return incident
 
+def ad_payloads():
+    return {
+        "disable_user": action_disable_user,
+        "force_password_reset": action_force_password_reset
+    }   
+def nessus_payloads():
+    return {
+        "trigger_scan": action_trigger_scan
+    }
+def crowdstrike_payloads():
+    return {
+        "isolate_device": action_isolate_device,
+        "kill_process": action_kill_process,
+        "quarantine_file": action_quarantine_file
+    }
+def fortinet_payloads():
+    return {
+        "ban_ip_address": action_ban_ip_address,
+        "block_port": action_block_port,
+        "block_domain": action_block_domain
+    }
+
 
 INCIDENT_ACTIONS = {
     "investigate": _investigate,
@@ -60,6 +86,15 @@ INCIDENT_ACTIONS = {
     "false_positive": _false_positive,
     "reopen": _reopen,
     "assign": _assign,
+    "disable_user": ad_payloads()["disable_user"],
+    "force_password_reset": ad_payloads()["force_password_reset"],
+    "trigger_scan": nessus_payloads()["trigger_scan"],
+    "isolate_device": crowdstrike_payloads()["isolate_device"],
+    "kill_process": crowdstrike_payloads()["kill_process"],
+    "quarantine_file": crowdstrike_payloads()["quarantine_file"],
+    "ban_ip_address": fortinet_payloads()["ban_ip_address"],
+    "block_port": fortinet_payloads()["block_port"],
+    "block_domain": fortinet_payloads()["block_domain"],
 }
 
 def create_incident(title, description, severity='medium', status='open', assigned_to=None):
@@ -153,10 +188,9 @@ def incident_correlation(detections):
 
 
 def incident_action(incident, action, **kwargs):
-    if action in INCIDENT_ACTIONS:
-        return INCIDENT_ACTIONS[action](incident, **kwargs)
-    return None
-
-
-
-
+    result = None
+    if incident and action in INCIDENT_ACTIONS:
+        result = INCIDENT_ACTIONS[action](**kwargs)
+        if result:
+            incident.save(update_fields=["updated_at"])
+    return result

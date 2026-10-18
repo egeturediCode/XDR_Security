@@ -291,6 +291,14 @@ def incidents(request):
     )
 
 
+RESPONSE_SERVICES = {
+    "active_directory": ("Active Directory", [("disable_user", "Kullanıcıyı devre dışı bırak"), ("force_password_reset", "Parola sıfırlamaya zorla")]),
+    "nessus": ("Nessus", [("trigger_scan", "Tarama başlat")]),
+    "crowdstrike": ("CrowdStrike", [("isolate_device", "Cihazı izole et"), ("kill_process", "İşlemi sonlandır"), ("quarantine_file", "Dosyayı karantinaya al")]),
+    "fortinet": ("Fortinet", [("ban_ip_address", "IP adresini yasakla"), ("block_port", "Portu engelle"), ("block_domain", "Domaini engelle")]),
+}
+
+
 @company_required
 def incident_detail(request, incident_id):
     incident = get_object_or_404(
@@ -328,6 +336,12 @@ def incident_detail(request, incident_id):
         )
 
     timeline = sorted(events.values(), key=lambda e: e.created_at, reverse=True)
+    sources = {str(e.source).lower() for e in events.values()}
+    response_services = [
+        {"key": key, "name": name, "actions": actions}
+        for key, (name, actions) in RESPONSE_SERVICES.items()
+        if key in sources
+    ]
     return render(
         request,
         "incident_detail.html",
@@ -341,6 +355,13 @@ def incident_detail(request, incident_id):
             "timeline": timeline[:50],
             "event_total": len(timeline),
             "is_active": incident.status in ("open", "investigating"),
+            "response_services": response_services,
+            "response_unlocked": incident.status == "investigating",
+            "response_defaults": {
+                "ip_address": next((a.ip_address for a in assets.values() if a.ip_address), ""),
+                "device_id": next((a.hostname for a in assets.values()), ""),
+                "user_id": sorted(users)[0] if users else "",
+            },
         },
     )
 

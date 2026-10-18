@@ -139,3 +139,12 @@ LOGOUT_REDIRECT_URL = '/dashboard/login/'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Müdahale servisleri için kimlik bilgileri
+
+MS_GRAPH_TOKEN = config('MS_GRAPH_TOKEN', default='')
+CROWDSTRIKE_TOKEN = config('CROWDSTRIKE_TOKEN', default='')
+FORTINET_URL = config('FORTINET_URL', default='')
+FORTINET_TOKEN = config('FORTINET_TOKEN', default='')
+NESSUS_URL = config('NESSUS_URL', default='')
+NESSUS_TOKEN = config('NESSUS_TOKEN', default='')

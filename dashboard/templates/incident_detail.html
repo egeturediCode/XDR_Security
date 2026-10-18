@@ -93,6 +93,31 @@
                 <button name="action" value="assign" class="action-btn">Bana ata</button>
                 {% endif %}
             </form>
+
+            {% if response_services %}
+            <details class="response-menu{% if not response_unlocked %} is-locked{% endif %}">
+                <summary {% if not response_unlocked %}aria-disabled="true" tabindex="-1" title="Vaka incelemeye alındığında aktif olur"{% endif %}>
+                    <span>Müdahale servisleri</span>
+                    {% if not response_unlocked %}<span class="lock-icon" aria-label="Kilitli">🔒</span>{% else %}<span class="chevron" aria-hidden="true">▾</span>{% endif %}
+                </summary>
+                {% if response_unlocked %}
+                <ul class="response-tree" data-endpoint="{% url 'incident-action' %}" data-incident="{{ incident.id }}"
+                    data-ip="{{ response_defaults.ip_address }}" data-device="{{ response_defaults.device_id }}" data-user="{{ response_defaults.user_id }}">
+                    {% for service in response_services %}
+                    <li data-service="{{ service.key }}">
+                        <span class="response-service-name">{{ service.name }}</span>
+                        <ul>
+                            {% for code, label in service.actions %}
+                            <li><button type="button" class="response-action" data-action="{{ code }}">{{ label }}</button></li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <p class="response-result muted-note" role="status"></p>
+                {% endif %}
+            </details>
+            {% endif %}
         </section>
 
         <section class="panel detail-card" aria-labelledby="asset-title">
@@ -131,4 +156,62 @@
         </section>
     </aside>
 </div>
+
+{% if response_unlocked %}
+<script>
+(function () {
+    const tree = document.querySelector('.response-tree');
+    if (!tree) return;
+    const result = document.querySelector('.response-result');
+    const csrf = document.querySelector('input[name=csrfmiddlewaretoken]').value;
+
+    const known = {
+        ip_address: tree.dataset.ip, 
+        target_ip: tree.dataset.ip,
+        device_id: tree.dataset.device, 
+        user_id: tree.dataset.user,
+    };
+    const needed = {
+        disable_user: ['user_id'], force_password_reset: ['user_id'],
+        trigger_scan: ['target_ip', 'scan_template_id'],
+        isolate_device: ['device_id'], kill_process: ['device_id', 'process_id'],
+        quarantine_file: ['file_hash'], ban_ip_address: ['ip_address'],
+        block_port: ['port_number', 'protocol_type'], block_domain: ['domain_name'],
+    };
+    
+    tree.querySelectorAll('.response-action').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            const action = btn.dataset.action;
+            const params = {};
+            for (const name of needed[action]) {
+                let value = known[name];
+                if (!value) value = window.prompt(name);
+                if (!value) return;
+                params[name] = value;
+            }
+            btn.disabled = true;
+            result.textContent = 'Çalıştırılıyor…';
+            try {
+                const res = await fetch(tree.dataset.endpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+                    body: JSON.stringify({
+                        incident_id: Number(tree.dataset.incident), 
+                        action: action, 
+                        params: params
+                    }),
+                });
+                const data = await res.json();
+                result.textContent = data.message || data.error || res.statusText;
+            } catch (err) {
+                result.textContent = 'İstek başarısız: ' + err;
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

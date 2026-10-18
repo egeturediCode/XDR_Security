@@ -1627,3 +1627,18 @@ a.related-item:hover { border-color: rgba(92,225,192,.3); background: rgba(92,22
     .detail-heading { display: block; }
     .incident-badges { margin-top: 12px; }
 }
+.response-menu { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.02); }
+.response-menu summary { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; font-size: 13px; font-weight: 600; cursor: pointer; list-style: none; }
+.response-menu summary::-webkit-details-marker { display: none; }
+.response-menu .chevron { color: var(--accent); transition: transform .15s ease; }
+.response-menu[open] .chevron { transform: rotate(180deg); }
+.response-menu.is-locked summary { cursor: not-allowed; opacity: .55; pointer-events: none; }
+.response-tree, .response-tree ul { list-style: none; margin: 0; padding: 0; }
+.response-tree { padding: 4px 14px 12px; }
+.response-tree > li + li { margin-top: 10px; }
+.response-service-name { font-size: 12px; font-weight: 600; color: var(--accent); }
+.response-tree ul { margin-top: 4px; margin-left: 6px; border-left: 1px solid var(--border); }
+.response-tree ul li { position: relative; padding-left: 14px; }
+.response-tree ul li::before { content: ""; position: absolute; left: 0; top: 50%; width: 10px; border-top: 1px solid var(--border); }
+.response-action { padding: 4px 0; border: 0; background: none; color: #c4ced7; font: inherit; font-size: 12px; cursor: pointer; }
+.response-action:hover { color: var(--accent); }

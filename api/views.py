@@ -1,5 +1,6 @@
 import inspect
 from django.conf import settings
+from ingest.throttles import TenantRateThrottle
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -9,9 +10,11 @@ from ingest.parsers.base import process_incoming_log
 from incident_management.services import SERVICE_ACTION_NAMES, incident_action, INCIDENT_ACTIONS
 from incident_management.models import Incident
 from ingest.models import Company
+from api.permissions import IsSecurityAnalystOrAdmin
 
 
 class AutonomousIngestView(APIView):
+    throttle_classes = [TenantRateThrottle]
     def post(self, request, *args, **kwargs):
         try:
             company = Company.objects.get(api_key=request.headers.get("X-API-KEY"))
@@ -56,7 +59,7 @@ SERVICE_ACTION_CREDENTIALS = {
     "nessus_token": "NESSUS_TOKEN",
 }
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsSecurityAnalystOrAdmin])
 def response_incident_action(request):
     incident_id = request.data.get("incident_id")
     action = request.data.get("action")

@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 from decouple import config
+
     
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -41,6 +42,7 @@ INSTALLED_APPS = [
     'audit',
     'analytics',
     'incident_management',
+    'corsheaders',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -52,6 +54,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -77,6 +80,13 @@ TEMPLATES = [
     },
 ]
 
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_RATES': {
+        'tenant_ingest': '100/sec', 
+        'dashboard_login': '5/min', 
+    }
+}
+
 WSGI_APPLICATION = 'XDR_Security.wsgi.application'
 
 
@@ -93,6 +103,21 @@ DATABASES = {
         'PORT': config('DB_PORT', default='5433', cast=int),
     }
 }
+
+# Cache configuration using Redis
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
+CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
 
 
 # Password validation
@@ -148,3 +173,15 @@ FORTINET_URL = config('FORTINET_URL', default='')
 FORTINET_TOKEN = config('FORTINET_TOKEN', default='')
 NESSUS_URL = config('NESSUS_URL', default='')
 NESSUS_TOKEN = config('NESSUS_TOKEN', default='')
+
+# CORS ayarları
+CORS_ALLOW_ALL_ORIGINS = False
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8000", # geliştirme ortamı
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+# SSL
+SECURE_SSL_REDIRECT = False # geliştirme ortamı

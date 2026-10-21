@@ -3,10 +3,12 @@ import random
 import urllib.request
 import json
 
+from decouple import config
+
 DJANGO_API_URL = "http://127.0.0.1:8000/api/v1/ingest/"
 
 COMPANY_NAME = "Beta Lojistik"
-API_KEY = "zNZQKmtc5GUxHJePYhzPoXA-DgrxFp6JVR4sD5CQdxU"
+API_KEY = config("BETA_LOJISTIK_API_KEY", default="")
 
 # Beta Lojistik şirketine bağlı varlıklar (Assets)
 ASSETS = [
@@ -121,6 +123,9 @@ def generate_fortinet_event():
 
 
 def main():
+    if not API_KEY:
+        raise RuntimeError("Set BETA_LOJISTIK_API_KEY in the environment or .env file.")
+
     generators = [
         generate_crowdstrike_event,
         generate_activedirectory_event,

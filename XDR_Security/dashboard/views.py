@@ -472,6 +472,7 @@ def company_create(request):
 
     messages.success(
         request,
-        f"{company.name} kaydedildi, {len(assets)} varlık eklendi. API anahtarı: {company.api_key}",
+        f"{company.name} kaydedildi, {len(assets)} varlık eklendi. "
+        f"API anahtarı (yalnızca bu kez gösterilir): {company.raw_api_key}",
     )
     return redirect("company_select")

@@ -7,6 +7,7 @@ A multi-tenant security monitoring and incident response application. It turns s
 ## Features
 
 - Company/tenant-level data separation. Each company has its own API key and asset inventory.
+- Company API keys are stored as SHA-256 hashes and shown in plain text only when a new company is created.
 - Ingest and normalization for event formats from CrowdStrike Falcon, Microsoft Active Directory, Fortinet FortiOS, and Tenable Nessus.
 - Normalized events use OCSF 1.1.0 fields.
 - Rule-based detection using criteria such as event type, status, Windows Event ID, protocol, process name, message patterns, time windows and thresholds, and CVSS score.
@@ -129,6 +130,10 @@ Run these commands from the repository root:
    FORTINET_TOKEN=
    NESSUS_URL=
    NESSUS_TOKEN=
+
+   # Optional: raw API keys for the sample simulators
+   ALPHA_CORP_API_KEY=
+   BETA_LOJISTIK_API_KEY=
    ```
 
 3. Start the database and pgAdmin:
@@ -199,6 +204,8 @@ Example Fortinet event:
 
 Use an environment variable for the key instead of putting it directly in a command or a shared example:
 
+The client sends the original API key; the server hashes it before looking up the stored hash.
+
 ```bash
 export XDR_API_KEY='company-api-key'
 curl -X POST http://127.0.0.1:8000/api/v1/ingest/ \
@@ -216,7 +223,7 @@ python client_simulator_alpha_corp.py
 python client_simulator_beta_lojistik.py
 ```
 
-**Simulator warning:** The client files define API keys as hard-coded values. Before running a simulator, make sure its key matches the intended tenant's key in the database. Do not keep hard-coded keys in a public repository, and rotate them if they have already been shared.
+**Simulator note:** Set the matching raw API key in `.env` before running a simulator. Clients send the raw key; the server hashes it before comparing it with the database value. Do not put the database hash in the client configuration.
 
 ## Incident response
 
@@ -238,7 +245,7 @@ PostgreSQL connection settings are also required for the test database. The exis
 
 - `compose.yaml` includes PostgreSQL and pgAdmin only; it does not define a Redis/Celery worker. Although the project has Celery tasks and broker settings, do not assume that tasks will run until Celery application bootstrap configuration is added.
 - `settings.py` uses development defaults (`DEBUG=True`, an empty `ALLOWED_HOSTS`, and a development SSL setting). Do not use these settings for an internet-facing production deployment.
-- The two simulators have API keys hard-coded in their source files. Rotate these keys before making the repository public, and update the clients to use secret configuration.
+- The simulators read API keys from `ALPHA_CORP_API_KEY` and `BETA_LOJISTIK_API_KEY`. If their former hard-coded keys were committed, rotate those keys before using the repository publicly; removing them from the current files does not remove them from Git history.
 - Do not add `.env` files, API keys, or integration tokens to the repository. Scan the full Git history for secrets before sharing the project.
 - The PostgreSQL/pgAdmin defaults in Compose are for local development only. Use strong, separate credentials in real environments.
 

@@ -1,12 +1,23 @@
-from django.db import models
+import hashlib
 import secrets
 import uuid
+
+from django.db import models
 
 # Create your models here.
 
 
+API_KEY_HASH_PREFIX = "sha256$"
+
+
 def generate_api_key():
     return secrets.token_urlsafe(32)
+
+
+def hash_api_key(api_key):
+    digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+    return f"{API_KEY_HASH_PREFIX}{digest}"
+
 
 class Company(models.Model):
     tenant_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
@@ -20,7 +31,7 @@ class Company(models.Model):
         unique=True,               
         db_index=True,             
         default=generate_api_key,  
-        help_text="Dış sistemlerin log gönderirken kullanacağı kimlik doğrulama anahtarı."
+        help_text="Dış sistemlerin gönderdiği anahtarın SHA-256 özeti."
     )
     
     is_active = models.BooleanField(default=True)
@@ -29,6 +40,15 @@ class Company(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        if self.api_key and not self.api_key.startswith(API_KEY_HASH_PREFIX):
+            self.raw_api_key = self.api_key
+            self.api_key = hash_api_key(self.api_key)
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = set(kwargs["update_fields"]) | {"api_key"}
+        super().save(*args, **kwargs)
+
 
 class Assets(models.Model):
     ASSET_TYPES = [
@@ -77,4 +97,3 @@ class SecurityEvent(models.Model):
 
     def __str__(self):
         return f"{self.asset.hostname} - {self.severity}"
-

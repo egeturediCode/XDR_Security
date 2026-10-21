@@ -1,33 +1,38 @@
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.urls import reverse
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from ingest.models import hash_api_key
+
 
 class AutonomousIngestViewTests(SimpleTestCase):
-    @patch("api.views.IngestEventSerializer")
-    def test_post_saves_event(self, serializer_class):
-        payload = {
-            "source": "crowdstrike",
-            "asset_hostname": "workstation-hr",
-            "asset_ip": "192.168.10.50",
-            "severity": 12,
-            "description": "Suspicious PowerShell command detected",
-            "mitre_tactic": "T1059.001",
-            "raw_log": {"detection_id": "ldt:123456", "action": "blocked"},
-        }
-        serializer = serializer_class.return_value
-        serializer.data = payload
+    @override_settings(ALLOWED_HOSTS=["testserver"])
+    @patch("api.views.TenantRateThrottle.allow_request", return_value=True)
+    @patch("api.views.process_incoming_log")
+    @patch("api.views.Company.objects.get")
+    def test_post_hashes_api_key_before_lookup(
+        self, company_get, process_incoming_log, _allow_request
+    ):
+        api_key = "test-api-key"
+        company_get.return_value.is_active = True
+        event = SimpleNamespace(id=1, detections=SimpleNamespace(
+            values_list=lambda *args, **kwargs: []
+        ))
+        process_incoming_log.return_value = event
 
         response = APIClient().post(
             reverse("autonomous-ingest"),
-            payload,
+            {"source": "crowdstrike"},
             format="json",
+            HTTP_X_API_KEY=api_key,
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {"message": "Event received", "data": payload})
-        serializer.is_valid.assert_called_once_with(raise_exception=True)
-        serializer.save.assert_called_once_with()
+        company_get.assert_called_once_with(api_key=hash_api_key(api_key))
+        process_incoming_log.assert_called_once_with(
+            "crowdstrike", {"source": "crowdstrike"}, company_get.return_value
+        )

@@ -10,7 +10,7 @@ from ingest.parsers.base import process_incoming_log
 from incident_management.services import SERVICE_ACTION_NAMES, INCIDENT_ACTIONS
 from incident_management.tasks import execute_async_action_task
 from incident_management.models import Incident
-from ingest.models import Company
+from ingest.models import Company, hash_api_key
 from api.permissions import IsSecurityAnalystOrAdmin
 
 
@@ -19,7 +19,9 @@ class AutonomousIngestView(APIView):
     throttle_classes = [TenantRateThrottle]
     def post(self, request, *args, **kwargs):
         try:
-            company = Company.objects.get(api_key=request.headers.get("X-API-KEY"))
+            company = Company.objects.get(
+                api_key=hash_api_key(request.headers.get("X-API-KEY", ""))
+            )
         except Company.DoesNotExist:
             return Response(
                 {"error": "Invalid API key"},

@@ -1,5 +1,8 @@
 from rest_framework.throttling import SimpleRateThrottle
 
+from .models import hash_api_key
+
+
 class TenantRateThrottle(SimpleRateThrottle):
     scope = 'tenant_ingest' 
 
@@ -11,5 +14,5 @@ class TenantRateThrottle(SimpleRateThrottle):
             
         return self.cache_format % {
             'scope': self.scope,
-            'identifier': api_key
+            'identifier': hash_api_key(api_key)
         }

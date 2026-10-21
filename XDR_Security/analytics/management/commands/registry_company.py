@@ -158,8 +158,10 @@ def seed_companies_and_assets():
     )
 
     print("Veritabanı kayıt işlemi tamamlandı.")
-    print(f"Alpha Corp API Key: {company1.api_key}")
-    print(f"Beta Lojistik API Key: {company2.api_key}")
+    if c1_created:
+        print(f"Alpha Corp API Key (only shown once): {company1.raw_api_key}")
+    if c2_created:
+        print(f"Beta Lojistik API Key (only shown once): {company2.raw_api_key}")
 
 
 class Command(BaseCommand):

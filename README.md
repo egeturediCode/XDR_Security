@@ -4,6 +4,8 @@ A multi-tenant security monitoring and incident response application. It turns s
 
 > **Project status:** This repository is a development prototype. Do not assume it is ready for production use. Review deployment security, integration credentials, Celery/Redis setup, and test coverage before using it.
 
+![Project Banner](images/screenshot-1.png)
+
 ## Features
 
 - Company/tenant-level data separation. Each company has its own API key and asset inventory.
@@ -60,6 +62,8 @@ Django dashboard: logs, detections, incidents, and action history
 4. **Incident correlation:** The system looks for active incidents linked to the same asset or user within the last 24 hours. If none is found, it creates a new incident. Otherwise, it adds the detection to the matching incident and raises its severity when needed.
 5. **Analyst workflow:** The dashboard provides company selection, an overview, log, detection, and incident pages. Analysts can investigate, assign, reopen, resolve, close, or mark incidents as false positives. Integration response actions can be triggered while an incident is being investigated.
 6. **Auditing:** Authentication events such as successful logins, logouts, and failed logins, as well as some incident changes, are written to the `AuditLog` model. Integration actions are tracked with `IncidentAction`; sensitive token fields are removed from the recorded action parameters.
+
+<img src="images/screenshot-2.png" alt="Project Banner" width="560">
 
 ## Repository structure
 

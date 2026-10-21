@@ -1,6 +1,5 @@
 from .registry import normalization_registry
-from analytics.services import detection_engine
-from incident_management.services import incident_correlation
+from analytics.tasks import run_detection_pipeline_task
 
 def process_incoming_log(source_name, raw_payload, company):
     registry = normalization_registry()
@@ -10,6 +9,6 @@ def process_incoming_log(source_name, raw_payload, company):
         raise ValueError(f"Desteklenmeyen veri kaynağı: {source_name}")
         
     event = parser_func(raw_payload, company)
-    detections = detection_engine(event)
-    incident_correlation(detections)
+
+    run_detection_pipeline_task.delay(event.id)
     return event

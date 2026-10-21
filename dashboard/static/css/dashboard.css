@@ -242,6 +242,7 @@ a {
     border-radius: 8px;
     color: #8997a5;
     transition: color 150ms ease, background 150ms ease;
+    background: transparent;
 }
 
 .logout-link:hover {

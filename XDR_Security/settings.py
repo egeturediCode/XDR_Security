@@ -35,7 +35,6 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'rest_framework',
-    'soar',
     'dashboard',
     'api',
     'ingest',

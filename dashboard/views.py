@@ -1,6 +1,7 @@
 import json
 from datetime import timedelta
-
+from django.contrib.auth import views as auth_views
+from .throttles import LoginRateThrottle
 from functools import wraps
 
 from django.contrib import messages
@@ -19,6 +20,10 @@ from incident_management.services import INCIDENT_ACTIONS, incident_action
 from ingest.models import Company, SecurityEvent
 
 from .forms import AssetFormSet, CompanyForm
+
+
+class LoginViewCustom(auth_views.LoginView):
+    throttle_classes = [LoginRateThrottle]
 
 COMPANY_SESSION_KEY = "company_id"
 

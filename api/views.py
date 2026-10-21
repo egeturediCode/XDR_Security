@@ -7,10 +7,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from ingest.parsers.base import process_incoming_log
-from incident_management.services import SERVICE_ACTION_NAMES, incident_action, INCIDENT_ACTIONS
+from incident_management.services import SERVICE_ACTION_NAMES, INCIDENT_ACTIONS
+from incident_management.tasks import execute_async_action_task
 from incident_management.models import Incident
 from ingest.models import Company
 from api.permissions import IsSecurityAnalystOrAdmin
+
 
 
 class AutonomousIngestView(APIView):
@@ -64,6 +66,7 @@ def response_incident_action(request):
     incident_id = request.data.get("incident_id")
     action = request.data.get("action")
     params = request.data.get("params") or {}
+    actor = request.user
 
     if not incident_id:
         return Response({"error": "Incident ID is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -89,10 +92,10 @@ def response_incident_action(request):
         else:
             return Response({"error": f"Missing parameter: {name}"}, status=status.HTTP_400_BAD_REQUEST)
 
-    success, message = incident_action(incident, action, actor=request.user, **kwargs)
+        execute_async_action_task.delay(action=action, target_id=incident.id, actor=request.user, **kwargs)
     return Response(
-        {"success": success, "message": message},
-        status=status.HTTP_200_OK if success else status.HTTP_502_BAD_GATEWAY,
+        {"message": "Action execution started"},
+        status=status.HTTP_200_OK,
     )
 
 
